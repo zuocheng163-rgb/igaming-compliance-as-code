@@ -105,7 +105,11 @@ const AccountDashboard = ({ user, isOpen, onClose }) => {
                                         onClick={async () => {
                                             try {
                                                 await claimBonus(p.id, 100);
-                                                window.dispatchEvent(new CustomEvent('neostrike-balance-refresh'));
+                                                // Add a small delay to allow backend to persist before refreshing
+                                                setTimeout(() => {
+                                                    window.dispatchEvent(new CustomEvent('neostrike-balance-refresh'));
+                                                    if (fetchProfileData) fetchProfileData(); // Also refresh transactions
+                                                }, 500);
                                                 alert('Bonus claimed successfully!');
                                             } catch (e) {
                                                 alert('Failed to claim bonus');

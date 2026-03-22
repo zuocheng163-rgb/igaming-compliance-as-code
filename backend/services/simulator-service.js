@@ -134,6 +134,8 @@ class SimulatorService {
      */
     static async handleSandboxRequest(req, res) {
         const { method, path: reqPath } = req;
+        const path = reqPath.startsWith('/') ? reqPath : '/' + reqPath;
+        logger.info(`[Simulator] Incoming: ${method} ${path}`);
         const correlationId = generateCorrelationId();
         const brandId = 1; // Default for demo
 
@@ -167,9 +169,6 @@ class SimulatorService {
             }
             return sandboxBalances.get(uid);
         };
-
-        // Normalize path for matching
-        const path = reqPath.startsWith('/') ? reqPath : '/' + reqPath;
 
         // 1. Mock User Details: (GET) /api/userdetails/:userid
         const userDetailsMatch = path.match(/\/(?:api\/)?userdetails\/([^\/?#]+)/i);
@@ -285,9 +284,10 @@ class SimulatorService {
             }
 
             // Push to FT (Awaited for stability)
-            await ftService.pushEvent(user_id, 'casino', {
-                transaction_id: `sb-tx-${Date.now()}`,
-                amount: amount,
+            await supabaseService.createTransaction({
+                transaction_id: `bet-${Date.now()}`,
+                brand_id: brandId,
+                user_id: bal.dbId, // Use the actual UUID from the database
                 type: 'Bet',
                 balance_before: balanceBefore,
                 balance_after: bal.amount,
@@ -295,7 +295,7 @@ class SimulatorService {
                 bonus_balance_after: bal.bonus,
                 game_id: 'slot-game-1',
                 currency: 'EUR'
-            }, { correlationId, brandId }).catch(e => logger.error('[Simulator] FT Casino Push Failed', e));
+            }).catch(e => logger.error('[Simulator] FT Casino Push Failed', e));
 
             await ftService.pushEvent(user_id, 'balance', {
                 amount: bal.amount,
@@ -322,6 +322,7 @@ class SimulatorService {
 
         // 8. Mock Bonus Credit: (POST) /api/bonus/credit OR /api/promotions/claim
         if (method === 'POST' && (path.includes('/bonus/credit') || path.includes('/promotions/claim'))) {
+            logger.info(`[Simulator] Bonus claim match: ${path}`);
             const { user_id, bonus_code, amount } = req.body;
             const uid = user_id || req.user?.username || 'test01';
             const bcode = bonus_code || 'WELCOME100';
@@ -329,6 +330,7 @@ class SimulatorService {
             logger.info(`[Simulator] Match: POST Bonus Credit for ${uid}, bonus: ${bcode}, amount: ${bonusAmount}`);
 
             const bal = await getBalance(uid);
+            await new Promise(r => setTimeout(r, 50)); // Small delay for replication lag if any
             bal.bonus += bonusAmount;
 
             // Push FT Bonus Event
@@ -342,6 +344,18 @@ class SimulatorService {
                 currency: 'EUR',
                 product: 'Casino'
             }, { correlationId, brandId }).catch(e => logger.error('[Simulator] FT Bonus Push Failed', e));
+
+            // Persist to Transactions table
+            await supabaseService.createTransaction({
+                transaction_id: `bon-${Date.now()}`,
+                brand_id: brandId,
+                user_id: bal.dbId,
+                type: 'Bonus',
+                amount: bonusAmount,
+                status: 'Success',
+                currency: 'EUR',
+                metadata: { bonus_code: bcode }
+            }).catch(e => logger.error('[Simulator] Bonus Transaction Save Failed', e));
 
             // Push Balance Update
             await ftService.pushEvent(user_id, 'balance', {
@@ -377,9 +391,10 @@ class SimulatorService {
             bal.amount += amount;
 
             // Push to FT (Awaited for stability)
-            await ftService.pushEvent(user_id, 'casino', {
-                transaction_id: `sb-win-${Date.now()}`,
-                amount: amount,
+            await supabaseService.createTransaction({
+                transaction_id: `bon-${Date.now()}`,
+                brand_id: brandId,
+                user_id: bal.dbId, // Use the actual UUID from the database
                 type: 'Win',
                 balance_before: balanceBefore,
                 balance_after: bal.amount,
@@ -430,6 +445,17 @@ class SimulatorService {
                 status: 'Approved',
                 currency: 'EUR'
             }, { correlationId, brandId }).catch(e => logger.error('[Simulator] FT Payment Push Failed', e));
+
+            // Persist to Transactions table
+            await supabaseService.createTransaction({
+                transaction_id: `dep-${Date.now()}`,
+                brand_id: brandId,
+                user_id: bal.dbId,
+                type: 'Deposit',
+                amount: depositAmount,
+                status: 'Success',
+                currency: 'EUR'
+            }).catch(e => logger.error('[Simulator] Deposit Transaction Save Failed', e));
 
             await ftService.pushEvent(user_id, 'balance', {
                 amount: bal.amount,

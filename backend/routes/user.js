@@ -4,101 +4,10 @@ const supabaseService = require('../services/supabase');
 const { logger } = require('../services/logger');
 
 // Reuse authentication logic similar to operator.js but focused on player context
-const authenticatePlayer = async (req, res, next) => {
-    try {
-        const authHeader = req.headers['authorization'] || '';
-        
-        // Recursive Bearer stripping to handle accidentally doubled prefixes
-        let sessionToken = authHeader;
-        while (sessionToken.toLowerCase().startsWith('bearer ')) {
-            sessionToken = sessionToken.substring(7).trim();
-        }
-        
-        const username = req.headers['x-username'];
+const { correlationMiddleware, authenticateRequest } = require('../middleware/auth');
 
-        logger.info('[Auth Trace] Player request', { 
-            path: req.path,
-            hasAuth: !!authHeader,
-            hasUsername: !!username,
-            tokenPrefix: sessionToken?.substring(0, 10)
-        });
-
-        if (!sessionToken && !username) {
-            logger.warn('[Auth] Rejected: No token or username');
-            return res.status(401).json({ error: 'Unauthorized: No token or username' });
-        }
-
-        let user = await supabaseService.getUser(username, sessionToken);
-
-        // Demo/Sandbox Mode Fallback (JIT User Creation)
-        const isDemo = process.env.DEMO_MODE === 'true';
-        // Sandbox is active if explicitly requested, if demo mode is on, OR if the token looks like a test token
-        const isSandbox = req.headers['x-sandbox-mode'] === 'true' || isDemo || (sessionToken && sessionToken.startsWith('token-'));
-
-        if (!user && isSandbox && (sessionToken?.startsWith('token-') || username)) {
-            let targetUsername = username;
-            if (!targetUsername && sessionToken?.startsWith('token-')) {
-                // Best effort extraction: remove 'token-' and strip timestamp if it looks like one
-                const raw = sessionToken.replace('token-', '');
-                targetUsername = raw.split('-')[0];
-            }
-
-            if (targetUsername) {
-                logger.info('[Auth] Player Sandbox Fallback: Resolving user', { targetUsername });
-                user = await supabaseService.getUserById(targetUsername);
-
-                if (!user) {
-                    logger.info('[Auth] Player Sandbox: User not found, creating JIT user', { targetUsername });
-                    try {
-                        user = await supabaseService.createUser({
-                            username: targetUsername,
-                            email: `${targetUsername}@example.com`,
-                            token: sessionToken,
-                            brand_id: 1,
-                            roles: ['PLAYER']
-                        });
-                        
-                        await supabaseService.upsertPlayerProfile({
-                            player_id: user.id,
-                            tenant_id: '1',
-                            email: `${targetUsername}@example.com`,
-                            display_name: targetUsername
-                        });
-                    } catch (e) {
-                        logger.error('[Auth] Player JIT Creation Failed', { error: e.message });
-                        // Last resort fallback (non-persistent but allows request to proceed if valid enough)
-                        user = { id: targetUsername, username: targetUsername, brand_id: 1 };
-                    }
-                }
-            }
-        }
-
-        if (!user) {
-            logger.warn('[Auth] Player Unauthorized Access', { 
-                username, 
-                hasToken: !!sessionToken,
-                isSandbox,
-                tokenPrefix: sessionToken?.substring(0, 8),
-                isDemo
-            });
-            return res.status(401).json({ 
-                error: 'Unauthorized: Invalid session',
-                debug: isSandbox ? 'Sandbox active but user resolution failed' : 'Production auth failed. Check if user exists in DB with this token.',
-                received_token_prefix: sessionToken?.substring(0, 8)
-            });
-        }
-
-        // Ensure we handle both 'id' and 'user_id' fields consistently (UUID vs Login name)
-        const userIdForQuery = user.user_id || user.username || user.id;
-        req.user = { ...user, user_id: userIdForQuery };
-        next();
-    } catch (error) {
-        logger.error('Player Auth Error', { error: error.message });
-        res.status(500).json({ error: 'Internal Server Error' });
-    }
-};
-
-router.use(authenticatePlayer);
+router.use(correlationMiddleware);
+router.use(authenticateRequest);
 
 /**
  * GET /api/user/recently-played
