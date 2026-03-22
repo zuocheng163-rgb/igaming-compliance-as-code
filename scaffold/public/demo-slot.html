@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeoStrike Demo Slot</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #05050a;
+            color: #fff;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .container {
+            text-align: center;
+            padding: 40px;
+            background: linear-gradient(145deg, #1a1a2e 0%, #0f0f1a 100%);
+            border-radius: 24px;
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            max-width: 400px;
+            width: 90%;
+        }
+        .logo {
+            font-size: 12px;
+            color: #888;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+        }
+        .balance-display {
+            font-size: 48px;
+            font-weight: bold;
+            color: #0088ff;
+            margin: 20px 0;
+        }
+        .currency {
+            font-size: 18px;
+            color: #666;
+        }
+        .reels {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin: 30px 0;
+        }
+        .reel {
+            width: 70px;
+            height: 90px;
+            background: rgba(0,0,0,0.4);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            border: 1px solid rgba(255,255,255,0.05);
+            transition: transform 0.1s;
+        }
+        .spin-btn {
+            background: #0088ff;
+            color: white;
+            border: none;
+            padding: 18px 60px;
+            border-radius: 40px;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 10px 20px rgba(0, 136, 255, 0.3);
+            transition: all 0.2s;
+        }
+        .spin-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 25px rgba(0, 136, 255, 0.4);
+        }
+        .spin-btn:active:not(:disabled) {
+            transform: translateY(1px);
+        }
+        .spin-btn:disabled {
+            background: #333;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+        .win-overlay {
+            color: #00ff88;
+            font-size: 24px;
+            font-weight: bold;
+            margin-top: 20px;
+            height: 30px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .win-overlay.show {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">NeoStrike Proprietary Slot v1.0</div>
+        <div class="balance-display" id="balance">1000.00 <span class="currency">EUR</span></div>
+        
+        <div class="reels">
+            <div class="reel" id="reel1">🍒</div>
+            <div class="reel" id="reel2">🔔</div>
+            <div class="reel" id="reel3">💎</div>
+        </div>
+
+        <button class="spin-btn" id="spinBtn">SPIN (10 EUR)</button>
+        <div class="win-overlay" id="winAlert">BIG WIN: +50.00!</div>
+    </div>
+
+    <script>
+        let balance = 1000.00;
+        const symbols = ['🍒', '🔔', '💎', '7️⃣', '🍋', '🍇'];
+        
+        const balanceEl = document.getElementById('balance');
+        const spinBtn = document.getElementById('spinBtn');
+        const winAlert = document.getElementById('winAlert');
+        const reels = [
+            document.getElementById('reel1'),
+            document.getElementById('reel2'),
+            document.getElementById('reel3')
+        ];
+
+        // Listen for messages from parent
+        window.addEventListener('message', (event) => {
+            const data = event.data;
+            if (data.type === 'BALANCE_SYNC') {
+                balance = data.real;
+                updateUI();
+            }
+        });
+
+        function updateUI() {
+            balanceEl.innerHTML = balance.toFixed(2) + ' <span class="currency">EUR</span>';
+        }
+
+        function postEvent(type, detail, amount = 0) {
+            window.parent.postMessage({
+                type: 'FT_EVENT',
+                event: type,
+                detail: detail,
+                amount: amount
+            }, '*');
+        }
+
+        function updateParentBalance() {
+            window.parent.postMessage({
+                type: 'BALANCE_UPDATE',
+                real: balance
+            }, '*');
+        }
+
+        spinBtn.addEventListener('click', () => {
+            if (balance < 10) return;
+
+            // Start Spin
+            spinBtn.disabled = true;
+            winAlert.classList.remove('show');
+            
+            // Deduct Bet locally
+            balance -= 10;
+            updateUI();
+            
+            // Notify Parent
+            updateParentBalance();
+            postEvent('WAGER', 'Player placed 10.00 EUR wager on NeoStrike Demo Slot', -10);
+
+            // Simulation Animation
+            const interval = setInterval(() => {
+                reels.forEach(r => {
+                    r.textContent = symbols[Math.floor(Math.random() * symbols.length)];
+                });
+            }, 100);
+
+            setTimeout(() => {
+                clearInterval(interval);
+                
+                // Final Results
+                const results = [
+                    symbols[Math.floor(Math.random() * symbols.length)],
+                    symbols[Math.floor(Math.random() * symbols.length)],
+                    symbols[Math.floor(Math.random() * symbols.length)]
+                ];
+                
+                reels.forEach((r, i) => r.textContent = results[i]);
+
+                // Check Win (Simulation)
+                const isWin = Math.random() > 0.7;
+                if (isWin) {
+                    const win = 50.00;
+                    balance += win;
+                    updateUI();
+                    
+                    winAlert.textContent = 'WIN: +' + win.toFixed(2) + '!';
+                    winAlert.classList.add('show');
+                    
+                    updateParentBalance();
+                    postEvent('WIN', 'Player won ' + win.toFixed(2) + ' EUR on NeoStrike Demo Slot', win);
+                }
+
+                spinBtn.disabled = false;
+            }, 800);
+        });
+    </script>
+</body>
+</html>

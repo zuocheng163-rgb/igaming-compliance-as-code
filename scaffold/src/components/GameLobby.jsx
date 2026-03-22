@@ -14,6 +14,7 @@ const GAME_THEMES = {
     'netent:starburst': { emoji: '💎', gradient: 'linear-gradient(135deg, #4a00e0 0%, #8e2de2 60%, #00c6ff 100%)' },
     'netent:gonzos-quest': { emoji: '🌴', gradient: 'linear-gradient(135deg, #134e5e 0%, #11998e 60%, #b8860b 100%)' },
     'netent:divine-fortune': { emoji: '🐴', gradient: 'linear-gradient(135deg, #8B0000 0%, #4b134f 60%, #b8860b 100%)' },
+    'neostrike-demo': { emoji: '🚀', gradient: 'linear-gradient(135deg, #0088ff 0%, #004488 60%, #002244 100%)' },
 };
 
 const GameCard = ({ game, onLaunch, isFavourite, onToggleFavourite }) => {
