@@ -3,6 +3,9 @@ const router = express.Router();
 const supabaseService = require('../services/supabase');
 const WalletService = require('../services/wallet-service');
 const { logger } = require('../services/logger');
+const { correlationMiddleware, authenticateRequest } = require('../middleware/auth');
+
+router.use(correlationMiddleware);
 
 /**
  * GET /api/promotions/active
@@ -22,7 +25,7 @@ router.get('/active', async (req, res) => {
  * POST /api/promotions/claim
  * Claims a bonus for the player.
  */
-router.post('/claim', async (req, res) => {
+router.post('/claim', authenticateRequest, async (req, res) => {
     const { bonus_code, amount } = req.body;
     const userId = req.user?.id;
 

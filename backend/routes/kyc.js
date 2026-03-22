@@ -4,27 +4,7 @@ const { logger } = require('../services/logger');
 const sumsubAdapter = require('../services/kyc/sumsub-adapter');
 const supabaseService = require('../services/supabase');
 
-// Middleware to authenticate user or operator
-// Re-using the same authenticateRequest from operator.js concept
-const authenticateRequest = async (req, res, next) => {
-    // simplified for brevity; relying on the fact that server.js might mount this behind real auth,
-    // or we recreate the basic check
-    const sessionToken = req.headers['authorization']?.replace('Bearer ', '');
-    const username = req.headers['x-username'];
-
-    if (!sessionToken) return res.status(401).json({ error: 'Unauthorized' });
-
-    let dbUser;
-    if (sessionToken.startsWith('token-') || process.env.DEMO_MODE === 'true') {
-        dbUser = await supabaseService.getUserById(username);
-    } else {
-        dbUser = await supabaseService.getUser(username, sessionToken);
-    }
-
-    if (!dbUser) return res.status(401).json({ error: 'Unauthorized' });
-    req.user = dbUser;
-    next();
-};
+const { authenticateRequest } = require('../middleware/auth');
 
 /**
  * @route POST /api/v1/kyc/initiate
