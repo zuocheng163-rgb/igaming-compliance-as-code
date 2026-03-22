@@ -67,7 +67,7 @@ router.post('/track-activity', async (req, res) => {
 router.get('/transactions', async (req, res) => {
     try {
         const transactions = await supabaseService.getUserTransactions(req.user.user_id);
-        res.json(transactions);
+        res.json({ transactions });
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch transactions' });
     }
