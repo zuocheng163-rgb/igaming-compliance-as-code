@@ -2,14 +2,26 @@ import { useState, useEffect, useRef } from 'react';
 import { useNeoStrike } from '../NeoStrikeProvider';
 
 export const useGameLaunch = (gameId, options = {}) => {
-    const { client, isConnected } = useNeoStrike();
+    const { client } = useNeoStrike();
     const [launchUrl, setLaunchUrl] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
     const cache = useRef({});
 
     useEffect(() => {
-        if (!gameId || !client || !isConnected) return;
+        if (!gameId) return;
+
+        // neostrike-demo: resolve immediately without backend call
+        if (gameId === 'neostrike-demo') {
+            const mode = options.mode || 'demo';
+            const cacheKey = `${gameId}-${mode}`;
+            const localUrl = `/demo-slot.html?mode=${mode}`;
+            cache.current[cacheKey] = localUrl;
+            setLaunchUrl(localUrl);
+            return;
+        }
+
+        if (!client) return;
 
         const mode = options.mode || 'real';
         const cacheKey = `${gameId}-${mode}`;
@@ -24,10 +36,8 @@ export const useGameLaunch = (gameId, options = {}) => {
             setError(null);
             try {
                 if (gameId === 'neostrike-demo') {
-                    // C-07 built-in HTML5 game document
-                    const localUrl = `/demo-slot.html?mode=${mode}`;
-                    setLaunchUrl(localUrl);
-                    cache.current[cacheKey] = localUrl;
+                    // Already handled above, this block is no longer needed
+                    return;
                 } else {
                     const data = await client.getGameLaunchUrl(gameId, { mode, ...options });
                     if (data && data.url) {
@@ -47,7 +57,7 @@ export const useGameLaunch = (gameId, options = {}) => {
         };
 
         fetchLaunch();
-    }, [gameId, options.mode, client, isConnected]);
+    }, [gameId, options.mode, client]);
 
     return { launchUrl, isLoading, error };
 };
