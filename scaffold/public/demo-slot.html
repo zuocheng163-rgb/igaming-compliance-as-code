@@ -5,12 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NeoStrike Demo Slot</title>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        
         body {
             margin: 0;
             padding: 0;
-            background: #05050a;
+            background: #000;
             color: #fff;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: 'Inter', sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -18,197 +20,349 @@
             height: 100vh;
             overflow: hidden;
         }
-        .container {
-            text-align: center;
-            padding: 40px;
-            background: linear-gradient(145deg, #1a1a2e 0%, #0f0f1a 100%);
-            border-radius: 24px;
-            border: 1px solid rgba(255,255,255,0.1);
-            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
-            max-width: 400px;
-            width: 90%;
-        }
-        .logo {
-            font-size: 12px;
-            color: #888;
-            letter-spacing: 2px;
-            margin-bottom: 20px;
-            text-transform: uppercase;
-        }
-        .balance-display {
-            font-size: 48px;
-            font-weight: bold;
-            color: #0088ff;
-            margin: 20px 0;
-        }
-        .currency {
-            font-size: 18px;
-            color: #666;
-        }
-        .reels {
-            display: flex;
-            gap: 15px;
-            justify-content: center;
-            margin: 30px 0;
-        }
-        .reel {
-            width: 70px;
-            height: 90px;
-            background: rgba(0,0,0,0.4);
+
+        .game-canvas {
+            width: 100%;
+            height: 100%;
+            max-width: 800px;
+            max-height: 500px;
+            background: linear-gradient(180deg, #0f0f1a 0%, #05050a 100%);
             border-radius: 12px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            border: 2px solid rgba(255,255,255,0.05);
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+        }
+
+        /* Mode Indicator Strip (PRD: C-07) */
+        .mode-indicator {
+            padding: 8px 16px;
+            background: rgba(0,0,0,0.5);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 1px;
+        }
+        .mode-badge { display: flex; align-items: center; gap: 8px; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+        .mode-real .dot { background: #00ff88; box-shadow: 0 0 8px #00ff88; }
+        .mode-demo .dot { background: #ffaa00; box-shadow: 0 0 8px #ffaa00; }
+
+        .main-stage {
+            flex: 1;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 40px;
+            position: relative;
+        }
+
+        /* Fast Track Event Strip (PRD: C-07 last 4 events) */
+        .event-strip {
+            position: absolute;
+            left: 16px;
+            top: 20px;
+            bottom: 20px;
+            width: 180px;
+            display: flex;
+            flex-direction: column-reverse;
+            gap: 6px;
+            pointer-events: none;
+            overflow: hidden;
+        }
+        .inline-event {
+            font-size: 10px;
+            padding: 6px 10px;
+            background: rgba(255,255,255,0.03);
+            border-left: 2px solid #0088ff;
+            border-radius: 4px;
+            animation: fadeIn 0.3s forwards;
+            color: #ccc;
+        }
+        .inline-event.win { border-left-color: #00ff88; color: #fff; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+
+        /* Reels Center Stage */
+        .reels-container {
+            position: relative;
+            padding: 16px;
+            background: rgba(0,0,0,0.2);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            display: flex;
+            gap: 12px;
+        }
+        .win-line {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: rgba(255,255,255,0.05);
+            z-index: 5;
+            transition: all 0.3s;
+        }
+        .win-line.active {
+            background: #00ff88;
+            box-shadow: 0 0 15px #00ff88;
+        }
+        .reel-tile {
+            width: 90px;
+            height: 90px;
+            background: #11111a;
             border: 1px solid rgba(255,255,255,0.05);
-            transition: transform 0.1s;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 44px;
         }
-        .spin-btn {
+
+        /* Result Display (PRD: C-07) */
+        .result-display {
+            position: absolute;
+            bottom: -30px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 14px;
+            font-weight: 800;
+            color: #555;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        .result-display.win { color: #00ff88; text-shadow: 0 0 10px rgba(0,255,136,0.3); }
+
+        /* Controls */
+        .controls-strip {
+            padding: 24px;
+            background: rgba(255,255,255,0.02);
+            border-top: 1px solid rgba(255,255,255,0.05);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 32px;
+        }
+        .bet-control { width: 140px; }
+        .label { font-size: 10px; color: #666; margin-bottom: 8px; text-transform: uppercase; }
+        input[type=range] { width: 100%; cursor: pointer; accent-color: #0088ff; }
+
+        .spin-button {
             background: #0088ff;
-            color: white;
+            color: #fff;
             border: none;
-            padding: 18px 60px;
-            border-radius: 40px;
-            font-size: 20px;
-            font-weight: bold;
+            padding: 12px 40px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 800;
             cursor: pointer;
-            box-shadow: 0 10px 20px rgba(0, 136, 255, 0.3);
-            transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(0, 136, 255, 0.3);
+            transition: all 0.1s;
         }
-        .spin-btn:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 15px 25px rgba(0, 136, 255, 0.4);
-        }
-        .spin-btn:active:not(:disabled) {
-            transform: translateY(1px);
-        }
-        .spin-btn:disabled {
-            background: #333;
-            cursor: not-allowed;
-            box-shadow: none;
-        }
-        .win-overlay {
-            color: #00ff88;
-            font-size: 24px;
-            font-weight: bold;
-            margin-top: 20px;
-            height: 30px;
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-        .win-overlay.show {
-            opacity: 1;
+        .spin-button:hover:not(:disabled) { background: #1a95ff; }
+        .spin-button:active:not(:disabled) { transform: translateY(1px); }
+        .spin-button:disabled { background: #333; box-shadow: none; cursor: not-allowed; opacity: 0.5; }
+
+        .insufficient-balance {
+            color: #ff4444;
+            font-size: 11px;
+            position: absolute;
+            bottom: 80px;
+            display: none;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="logo">NeoStrike Proprietary Slot v1.0</div>
-        <div class="balance-display" id="balance">1000.00 <span class="currency">EUR</span></div>
-        
-        <div class="reels">
-            <div class="reel" id="reel1">🍒</div>
-            <div class="reel" id="reel2">🔔</div>
-            <div class="reel" id="reel3">💎</div>
+    <div class="game-canvas">
+        <div class="mode-indicator" id="modeStrip">
+            <div id="modeBadge" class="mode-demo">
+                <span class="dot"></span>
+                <span id="modeLabel">DEMO MODE</span>
+            </div>
+            <div id="balanceLabel">BALANCE: €1,000.00</div>
         </div>
 
-        <button class="spin-btn" id="spinBtn">SPIN (10 EUR)</button>
-        <div class="win-overlay" id="winAlert">BIG WIN: +50.00!</div>
+        <div class="main-stage">
+            <div class="event-strip" id="eventStrip"></div>
+            
+            <div class="reels-container">
+                <div class="win-line" id="winLine"></div>
+                <div class="reel-tile" id="r1">?</div>
+                <div class="reel-tile" id="r2">?</div>
+                <div class="reel-tile" id="r3">?</div>
+                <div class="result-display" id="resultDisplay">READY TO SPIN</div>
+            </div>
+
+            <div class="insufficient-balance" id="balanceError">INSUFFICIENT BALANCE</div>
+        </div>
+
+        <div class="controls-strip">
+            <div class="bet-control">
+                <div class="label">BET: €<span id="betValue">0.20</span></div>
+                <input type="range" id="betSlider" min="0" max="4" step="1" value="0">
+            </div>
+            <button class="spin-button" id="spinBtn">SPIN</button>
+        </div>
     </div>
 
     <script>
-        let balance = 1000.00;
-        const symbols = ['🍒', '🔔', '💎', '7️⃣', '🍋', '🍇'];
-        
-        const balanceEl = document.getElementById('balance');
-        const spinBtn = document.getElementById('spinBtn');
-        const winAlert = document.getElementById('winAlert');
-        const reels = [
-            document.getElementById('reel1'),
-            document.getElementById('reel2'),
-            document.getElementById('reel3')
+        const symbols = [
+            { id: 'cherry', icon: '🍒', m3: 2, m2: 0.5 },
+            { id: 'lemon', icon: '🍋', m3: 2.5, m2: 0.5 },
+            { id: 'grape', icon: '🍇', m3: 3, m2: 0.5 },
+            { id: 'bell', icon: '🔔', m3: 4, m2: 0.5 },
+            { id: 'star', icon: '⭐', m3: 5, m2: 0.5 },
+            { id: 'diamond', icon: '💎', m3: 10, m2: 0.5 }
         ];
 
-        // Listen for messages from parent
-        window.addEventListener('message', (event) => {
-            const data = event.data;
-            if (data.type === 'BALANCE_SYNC') {
-                balance = data.real;
-                updateUI();
+        const betDenoms = [0.20, 0.50, 1.00, 2.00, 5.00];
+        let currentBetIdx = 0;
+        let balance = 1000.00;
+        let isReal = false;
+        let isSpinning = false;
+
+        const ui = {
+            spinBtn: document.getElementById('spinBtn'),
+            betSlider: document.getElementById('betSlider'),
+            betValue: document.getElementById('betValue'),
+            balanceLabel: document.getElementById('balanceLabel'),
+            modeBadge: document.getElementById('modeBadge'),
+            modeLabel: document.getElementById('modeLabel'),
+            eventStrip: document.getElementById('eventStrip'),
+            resultDisplay: document.getElementById('resultDisplay'),
+            winLine: document.getElementById('winLine'),
+            balanceError: document.getElementById('balanceError'),
+            reels: [document.getElementById('r1'), document.getElementById('r2'), document.getElementById('r3')]
+        };
+
+        // Initialize from URL
+        if (new URLSearchParams(window.location.search).get('mode') === 'real') {
+            isReal = true;
+            ui.modeBadge.className = 'mode-real';
+            ui.modeLabel.textContent = 'REAL MONEY MODE';
+        }
+
+        function updateBalanceUI() {
+            ui.balanceLabel.textContent = 'BALANCE: €' + balance.toLocaleString('en-IE', { minimumFractionDigits: 2 });
+        }
+
+        function addEvent(tag, msg, amount = null) {
+            const el = document.createElement('div');
+            el.className = 'inline-event' + (tag === 'WIN' ? ' win' : '');
+            
+            let amtStr = amount !== null ? (amount > 0 ? ` +€${amount.toFixed(2)}` : ` -€${Math.abs(amount).toFixed(2)}`) : '';
+            el.innerHTML = `<strong>${tag}</strong>: ${msg} ${amtStr}`;
+            
+            ui.eventStrip.appendChild(el);
+            if (ui.eventStrip.children.length > 4) ui.eventStrip.removeChild(ui.eventStrip.firstChild);
+
+            if (isReal) {
+                window.parent.postMessage({ type: 'FT_EVENT', event: tag, detail: msg, amount: amount }, '*');
+            }
+        }
+
+        window.addEventListener('message', (e) => {
+            const d = e.data;
+            if (d.type === 'MODE_CHANGE') {
+                isReal = !d.demo;
+                ui.modeBadge.className = isReal ? 'mode-real' : 'mode-demo';
+                ui.modeLabel.textContent = isReal ? 'REAL MONEY MODE' : 'DEMO MODE';
+                if (!isReal) ui.balanceError.style.display = 'none';
+            }
+            if (d.type === 'BALANCE_SYNC') {
+                balance = d.real;
+                updateBalanceUI();
             }
         });
 
-        function updateUI() {
-            balanceEl.innerHTML = balance.toFixed(2) + ' <span class="currency">EUR</span>';
-        }
-
-        function postEvent(type, detail, amount = 0) {
-            window.parent.postMessage({
-                type: 'FT_EVENT',
-                event: type,
-                detail: detail,
-                amount: amount
-            }, '*');
-        }
-
-        function updateParentBalance() {
-            window.parent.postMessage({
-                type: 'BALANCE_UPDATE',
-                real: balance
-            }, '*');
-        }
-
-        spinBtn.addEventListener('click', () => {
-            if (balance < 10) return;
-
-            // Start Spin
-            spinBtn.disabled = true;
-            winAlert.classList.remove('show');
-            
-            // Deduct Bet locally
-            balance -= 10;
-            updateUI();
-            
-            // Notify Parent
-            updateParentBalance();
-            postEvent('WAGER', 'Player placed 10.00 EUR wager on NeoStrike Demo Slot', -10);
-
-            // Simulation Animation
-            const interval = setInterval(() => {
-                reels.forEach(r => {
-                    r.textContent = symbols[Math.floor(Math.random() * symbols.length)];
-                });
-            }, 100);
-
-            setTimeout(() => {
-                clearInterval(interval);
-                
-                // Final Results
-                const results = [
-                    symbols[Math.floor(Math.random() * symbols.length)],
-                    symbols[Math.floor(Math.random() * symbols.length)],
-                    symbols[Math.floor(Math.random() * symbols.length)]
-                ];
-                
-                reels.forEach((r, i) => r.textContent = results[i]);
-
-                // Check Win (Simulation)
-                const isWin = Math.random() > 0.7;
-                if (isWin) {
-                    const win = 50.00;
-                    balance += win;
-                    updateUI();
-                    
-                    winAlert.textContent = 'WIN: +' + win.toFixed(2) + '!';
-                    winAlert.classList.add('show');
-                    
-                    updateParentBalance();
-                    postEvent('WIN', 'Player won ' + win.toFixed(2) + ' EUR on NeoStrike Demo Slot', win);
-                }
-
-                spinBtn.disabled = false;
-            }, 800);
+        ui.betSlider.addEventListener('input', (e) => {
+            currentBetIdx = parseInt(e.target.value);
+            ui.betValue.textContent = betDenoms[currentBetIdx].toFixed(2);
         });
+
+        ui.spinBtn.addEventListener('click', () => {
+            if (isSpinning) return;
+            const bet = betDenoms[currentBetIdx];
+
+            if (isReal && balance < bet) {
+                ui.balanceError.style.display = 'block';
+                return;
+            }
+
+            isSpinning = true;
+            ui.spinBtn.disabled = true;
+            ui.betSlider.disabled = true;
+            ui.balanceError.style.display = 'none';
+            ui.resultDisplay.className = 'result-display';
+            ui.resultDisplay.textContent = 'SPINNING...';
+            ui.winLine.classList.remove('active');
+
+            // C-07 Requirement: Debit before animation
+            if (isReal) {
+                balance -= bet;
+                updateBalanceUI();
+                window.parent.postMessage({ type: 'BALANCE_UPDATE', real: bet }, '*');
+            }
+            addEvent('WAGER', `bet €${bet.toFixed(2)}`, -bet);
+
+            // C-07 Requirement: 14 ticks at 80ms
+            let ticks = 0;
+            const int = setInterval(() => {
+                ui.reels.forEach(r => r.textContent = symbols[Math.floor(Math.random() * symbols.length)].icon);
+                ticks++;
+                if (ticks >= 14) {
+                    clearInterval(int);
+                    finishSpin();
+                }
+            }, 80);
+        });
+
+        function finishSpin() {
+            const bet = betDenoms[currentBetIdx];
+            const res = [
+                symbols[Math.floor(Math.random() * symbols.length)],
+                symbols[Math.floor(Math.random() * symbols.length)],
+                symbols[Math.floor(Math.random() * symbols.length)]
+            ];
+            
+            ui.reels.forEach((r, i) => r.textContent = res[i].icon);
+
+            let mult = 0;
+            let detail = '';
+
+            // PRD Paytable logic
+            if (res[0].id === res[1].id && res[1].id === res[2].id) {
+                mult = res[0].m3;
+                detail = `${res[0].icon}×3 — ${mult}x`;
+            } else if (res[0].id === res[1].id || res[1].id === res[2].id) {
+                mult = 0.5;
+                detail = `2-match partial — 0.5x`;
+            }
+
+            if (mult > 0) {
+                const win = bet * mult;
+                if (isReal) {
+                    balance += win;
+                    updateBalanceUI();
+                    window.parent.postMessage({ type: 'BALANCE_UPDATE', real: 0, win: win }, '*');
+                }
+                ui.resultDisplay.className = 'result-display win';
+                ui.resultDisplay.textContent = 'WIN: €' + win.toFixed(2);
+                ui.winLine.classList.add('active');
+                addEvent('WIN', detail, win);
+            } else {
+                ui.resultDisplay.textContent = 'NO WIN';
+            }
+
+            isSpinning = false;
+            ui.spinBtn.disabled = false;
+            ui.betSlider.disabled = false;
+        }
+
+        updateBalanceUI();
     </script>
 </body>
 </html>

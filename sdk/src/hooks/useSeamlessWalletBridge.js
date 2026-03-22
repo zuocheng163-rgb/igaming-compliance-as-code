@@ -1,8 +1,8 @@
-import { useEffect } from 'react';
-import { useBalance } from './useBalance';
+import { useEffect, useCallback } from 'react';
+import { useNeoStrike } from '../NeoStrikeProvider';
 
 export const useSeamlessWalletBridge = (iframeRef, currentMode = 'real') => {
-    const { balance, updateBalance } = useBalance();
+    const { balance, client, pollBalance } = useNeoStrike();
     
     // Send mode change
     useEffect(() => {
@@ -24,6 +24,19 @@ export const useSeamlessWalletBridge = (iframeRef, currentMode = 'real') => {
         }
     }, [balance, currentMode, iframeRef]);
 
+    const performUpdate = useCallback(async (amount, winAmount) => {
+        try {
+            if (winAmount > 0) {
+                await client.credit(winAmount);
+            } else if (amount > 0) {
+                await client.debit(amount);
+            }
+            await pollBalance();
+        } catch (err) {
+            console.error('[SeamlessBridge] Update failed', err);
+        }
+    }, [client, pollBalance]);
+
     // Handle incoming messages
     useEffect(() => {
         const handleMessage = (event) => {
@@ -31,7 +44,7 @@ export const useSeamlessWalletBridge = (iframeRef, currentMode = 'real') => {
             if (!data || !data.type) return;
 
             if (data.type === 'BALANCE_UPDATE' && currentMode === 'real') {
-                updateBalance(data.real, undefined);
+                performUpdate(data.real, data.win);
             }
             
             if (data.type === 'FT_EVENT') {
@@ -42,5 +55,5 @@ export const useSeamlessWalletBridge = (iframeRef, currentMode = 'real') => {
 
         window.addEventListener('message', handleMessage);
         return () => window.removeEventListener('message', handleMessage);
-    }, [currentMode, updateBalance]);
+    }, [currentMode, performUpdate]);
 };

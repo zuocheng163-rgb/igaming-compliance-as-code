@@ -51,5 +51,35 @@ export const useBalance = (playerId, config = {}) => {
 
     const refresh = () => fetchBalance();
 
-    return { balance, bonusBalance, currency, loading, error, refresh };
+    const updateBalance = async (amount, winAmount) => {
+        try {
+            const apiUrl = getEnv('VITE_NEOSTRIKE_API_URL');
+            const apiKey = getEnv('VITE_NEOSTRIKE_API_KEY');
+            
+            if (winAmount > 0) {
+                await axios.post(`${apiUrl}/api/simulator/credit`, {
+                    user_id: playerId,
+                    amount: parseFloat(winAmount),
+                    game_id: 'neostrike-demo',
+                    transaction_id: `win-${Date.now()}`
+                }, {
+                    headers: { 'x-api-key': apiKey }
+                });
+            } else if (amount > 0) {
+                await axios.post(`${apiUrl}/api/simulator/debit`, {
+                    user_id: playerId,
+                    amount: parseFloat(amount),
+                    game_id: 'neostrike-demo',
+                    transaction_id: `bet-${Date.now()}`
+                }, {
+                    headers: { 'x-api-key': apiKey }
+                });
+            }
+            await fetchBalance();
+        } catch (err) {
+            console.error('Failed to update balance:', err);
+        }
+    };
+
+    return { balance, bonusBalance, currency, loading, error, refresh, updateBalance };
 };

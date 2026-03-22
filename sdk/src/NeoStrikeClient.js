@@ -107,6 +107,24 @@ class NeoStrikeClient {
         const response = await this.client.get('/api/balance');
         return response.data;
     }
+
+    async debit(amount, gameId, transactionId) {
+        const response = await this.client.post('/api/simulator/debit', {
+            amount: parseFloat(amount),
+            game_id: gameId || 'neostrike-demo',
+            transaction_id: transactionId || `tx-${Date.now()}`
+        });
+        return response.data;
+    }
+
+    async credit(amount, gameId, transactionId) {
+        const response = await this.client.post('/api/simulator/credit', {
+            amount: parseFloat(amount),
+            game_id: gameId || 'neostrike-demo',
+            transaction_id: transactionId || `tx-${Date.now()}`
+        });
+        return response.data;
+    }
 }
 
 export { NeoStrikeClient };
