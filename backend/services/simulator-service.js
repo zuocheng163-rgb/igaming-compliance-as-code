@@ -139,28 +139,31 @@ class SimulatorService {
 
         // Helper to get/init balance (fetch from DB if not in memory)
         const getBalance = async (uid) => {
-            if (!sandboxBalances.has(uid)) {
-                // Try to fetch from database first
-                try {
-                    const { data: userData, error } = await supabase
-                        .from('users')
-                        .select('balance, bonus_balance')
-                        .eq('username', uid)
-                        .single();
-
-                    if (!error && userData) {
-                        sandboxBalances.set(uid, {
-                            amount: parseFloat(userData.balance || 1000),
-                            bonus: parseFloat(userData.bonus_balance || 100)
-                        });
-                    } else {
-                        // Fallback to defaults if user not found
-                        sandboxBalances.set(uid, { amount: 1000, bonus: 100 });
-                    }
-                } catch (err) {
-                    logger.error('[Simulator] Failed to fetch balance from DB', err);
-                    sandboxBalances.set(uid, { amount: 1000, bonus: 100 });
+            // ALWAYS try to fetch from database first to ensure we aren't using stale in-memory data
+            try {
+                let query = supabase.from('users').select('id, balance, bonus_balance');
+                if (uid && uid.includes('-')) {
+                    query = query.eq('id', uid);
+                } else {
+                    query = query.eq('username', uid);
                 }
+                const { data: userData, error } = await query.single();
+
+                if (!error && userData) {
+                    const latest = {
+                        amount: parseFloat(userData.balance || 0),
+                        bonus: parseFloat(userData.bonus_balance || 0),
+                        dbId: userData.id
+                    };
+                    sandboxBalances.set(uid, latest);
+                    return latest;
+                }
+            } catch (err) {
+                logger.error('[Simulator] Failed to fetch balance from DB, falling back to cache', err);
+            }
+
+            if (!sandboxBalances.has(uid)) {
+                sandboxBalances.set(uid, { amount: 1000, bonus: 100 });
             }
             return sandboxBalances.get(uid);
         };
@@ -232,9 +235,9 @@ class SimulatorService {
             return true;
         }
 
-        // 6. Mock Bonus List: (GET) /api/bonus/list
-        if (method === 'GET' && (path.endsWith('/bonus/list') || path.includes('/bonus/list'))) {
-            logger.info(`[Simulator] Match: GET Bonus List`);
+        // 6. Mock Bonus List: (GET) /api/bonus/list AND /api/promotions/active
+        if (method === 'GET' && (path.includes('/bonus/list') || path.includes('/promotions/active'))) {
+            logger.info(`[Simulator] Match: GET Promotions/Bonus List`);
 
             // Aggressively prevent caching
             res.removeHeader('ETag');
@@ -245,11 +248,17 @@ class SimulatorService {
 
             // Include timestamp to force uniqueness
             const bonuses = this.getDemoBonuses();
-            res.json({
+            const promoResponse = {
+                promotions: bonuses.map(b => ({
+                    id: b.bonus_code,
+                    name: b.name,
+                    description: `Special offer: ${b.amount} EUR matching bonus.`
+                })),
                 bonuses: bonuses,
                 Data: bonuses,
                 timestamp: Date.now()
-            });
+            };
+            res.json(promoResponse);
             return true;
         }
 
@@ -294,6 +303,14 @@ class SimulatorService {
                 currency: 'EUR'
             }, { correlationId, brandId }).catch(e => logger.error('[Simulator] FT Balance Push Failed', e));
 
+            // Sync back to DB if we have a record
+            if (bal.dbId) {
+                await supabase.from('users').update({ 
+                    balance: bal.amount,
+                    bonus_balance: bal.bonus 
+                }).eq('id', bal.dbId);
+            }
+
             res.json({
                 transaction_id: `sandbox-tx-${Date.now()}`,
                 balance: bal.amount,
@@ -303,13 +320,15 @@ class SimulatorService {
             return true;
         }
 
-        // 8. Mock Bonus Credit: (POST) /api/bonus/credit
-        if (method === 'POST' && path.includes('/bonus/credit')) {
+        // 8. Mock Bonus Credit: (POST) /api/bonus/credit OR /api/promotions/claim
+        if (method === 'POST' && (path.includes('/bonus/credit') || path.includes('/promotions/claim'))) {
             const { user_id, bonus_code, amount } = req.body;
+            const uid = user_id || req.user?.username || 'test01';
+            const bcode = bonus_code || 'WELCOME100';
             const bonusAmount = parseFloat(amount || 100);
-            logger.info(`[Simulator] Match: POST Bonus Credit for ${user_id}, bonus: ${bonus_code}, amount: ${bonusAmount}`);
+            logger.info(`[Simulator] Match: POST Bonus Credit for ${uid}, bonus: ${bcode}, amount: ${bonusAmount}`);
 
-            const bal = await getBalance(user_id);
+            const bal = await getBalance(uid);
             bal.bonus += bonusAmount;
 
             // Push FT Bonus Event
@@ -330,6 +349,14 @@ class SimulatorService {
                 bonus_amount: bal.bonus,
                 currency: 'EUR'
             }, { correlationId, brandId }).catch(e => logger.error('[Simulator] FT Balance Push Failed', e));
+
+            // Sync back to DB if we have a record
+            if (bal.dbId) {
+                await supabase.from('users').update({ 
+                    balance: bal.amount,
+                    bonus_balance: bal.bonus 
+                }).eq('id', bal.dbId);
+            }
 
             res.json({
                 success: true,
@@ -368,6 +395,14 @@ class SimulatorService {
                 currency: 'EUR'
             }, { correlationId, brandId }).catch(e => logger.error('[Simulator] FT Balance Push Failed', e));
 
+            // Sync back to DB if we have a record
+            if (bal.dbId) {
+                await supabase.from('users').update({ 
+                    balance: bal.amount,
+                    bonus_balance: bal.bonus 
+                }).eq('id', bal.dbId);
+            }
+
             res.json({
                 transaction_id: `sandbox-win-${Date.now()}`,
                 balance: bal.amount,
@@ -401,6 +436,14 @@ class SimulatorService {
                 bonus_amount: bal.bonus,
                 currency: 'EUR'
             }, { correlationId, brandId }).catch(e => logger.error('[Simulator] FT Balance Push Failed', e));
+
+            // Sync back to DB if we have a record
+            if (bal.dbId) {
+                await supabase.from('users').update({ 
+                    balance: bal.amount,
+                    bonus_balance: bal.bonus 
+                }).eq('id', bal.dbId);
+            }
 
             res.json({
                 success: true,

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useGames, useSession, useFavourites, useRecentlyPlayed, FilterBar, LobbyCarousel } from '@neostrike/sdk';
+import React, { useState, useEffect } from 'react';
+import { useGames, useSession, useFavourites, useRecentlyPlayed, useGameLaunch, LobbyCarousel } from '@neostrike/sdk';
 import { logSDKEvent } from '@neostrike/sdk/src/utils';
 import { GameLauncher } from './GameLauncher';
 import theme from '../../theme.config';
@@ -18,6 +18,7 @@ const GAME_THEMES = {
 
 const GameCard = ({ game, onLaunch, isFavourite, onToggleFavourite }) => {
     const theme_ = GAME_THEMES[game.id] || { emoji: '🎮', gradient: 'linear-gradient(135deg, #1a1a2e 0%, #2d2d44 100%)' };
+    const [isHovered, setIsHovered] = useState(false);
 
     return (
         <div
@@ -32,11 +33,13 @@ const GameCard = ({ game, onLaunch, isFavourite, onToggleFavourite }) => {
                 position: 'relative'
             }}
             onMouseEnter={(e) => {
+                setIsHovered(true);
                 e.currentTarget.style.transform = 'translateY(-5px)';
                 e.currentTarget.style.borderColor = theme.colors.primary;
                 e.currentTarget.style.boxShadow = `0 10px 20px ${theme.colors.primary}22`;
             }}
             onMouseLeave={(e) => {
+                setIsHovered(false);
                 e.currentTarget.style.transform = 'translateY(0)';
                 e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)';
                 e.currentTarget.style.boxShadow = 'none';
@@ -47,9 +50,33 @@ const GameCard = ({ game, onLaunch, isFavourite, onToggleFavourite }) => {
                 onClick={() => onLaunch(game)}
             >
                 <span>{theme_.emoji}</span>
-                <div style={{ position: 'absolute', top: '10px', right: '10px', padding: '4px 8px', borderRadius: '4px', background: 'rgba(0,0,0,0.6)', fontSize: '10px', color: '#fff', fontWeight: 'bold' }}>
-                    {game.provider.split(':')[0].toUpperCase()}
-                </div>
+                {!isHovered && (
+                    <div style={{ position: 'absolute', top: '10px', right: '10px', padding: '4px 8px', borderRadius: '4px', background: 'rgba(0,0,0,0.6)', fontSize: '10px', color: '#fff', fontWeight: 'bold' }}>
+                        {game.provider.split(':')[0].toUpperCase()}
+                    </div>
+                )}
+                
+                {isHovered && (
+                    <div style={{
+                        position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.85)',
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                        gap: '8px', backdropFilter: 'blur(4px)', zIndex: 5
+                    }}>
+                        <div style={{ fontSize: '12px', color: '#aaa', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }}>
+                            {game.provider.split(':')[0]}
+                        </div>
+                        <div style={{ display: 'flex', gap: '20px', marginTop: '12px' }}>
+                            <div style={{ textAlign: 'center' }}>
+                                <div style={{ fontSize: '10px', color: '#888', marginBottom: '4px' }}>RTP</div>
+                                <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#00ff88' }}>{game.rtp || '96.5%'}</div>
+                            </div>
+                            <div style={{ textAlign: 'center' }}>
+                                <div style={{ fontSize: '10px', color: '#888', marginBottom: '4px' }}>MAX WIN</div>
+                                <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#ffb700' }}>{game.max_multiplier || '10,000x'}</div>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
             
             {/* Favourite Toggle */}
@@ -79,54 +106,93 @@ const GameCard = ({ game, onLaunch, isFavourite, onToggleFavourite }) => {
     );
 };
 
+const CATEGORIES = ['All Games', 'Slots', 'Live Casino', 'Table Games'];
+const MECHANICS = ['Megaways', 'Bonus Buy', 'Drops & Wins'];
+
+const CategoryNav = ({ activeCategory, onSelectCategory, activeMechanic, onSelectMechanic }) => (
+    <div style={{ marginBottom: '32px' }}>
+        <div style={{ display: 'flex', gap: '12px', overflowX: 'auto', paddingBottom: '12px', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+            {CATEGORIES.map(cat => {
+                const navKey = cat === 'All Games' ? 'all' : cat.toLowerCase().replace(' ', '-');
+                const isActive = activeCategory === navKey || (!activeCategory && navKey === 'all');
+                
+                return (
+                    <button 
+                        key={cat}
+                        onClick={() => onSelectCategory(navKey)}
+                        style={{
+                            padding: '10px 24px', borderRadius: '24px', border: 'none', cursor: 'pointer',
+                            whiteSpace: 'nowrap', fontWeight: 'bold', fontSize: '14px',
+                            background: isActive ? theme.colors.primary : 'rgba(255,255,255,0.05)',
+                            color: '#fff', transition: 'all 0.2s'
+                        }}
+                    >
+                        {cat}
+                    </button>
+                );
+            })}
+        </div>
+        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+            {MECHANICS.map(mech => (
+                <button
+                    key={mech}
+                    onClick={() => onSelectMechanic(activeMechanic === mech ? null : mech)}
+                    style={{
+                        padding: '8px 20px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer',
+                        whiteSpace: 'nowrap', fontSize: '13px', fontWeight: '500',
+                        background: activeMechanic === mech ? 'rgba(255,255,255,0.15)' : 'transparent',
+                        color: activeMechanic === mech ? '#fff' : '#aaa', transition: 'all 0.2s'
+                    }}
+                >
+                    {mech}
+                </button>
+            ))}
+        </div>
+    </div>
+);
+
 export const GameLobby = () => {
     const { player, isAuthenticated } = useSession();
     const { games, loading, error, search, filter, loadMore, total, filters } = useGames();
     const { favourites, isFavourite, toggleFavourite } = useFavourites();
     const { games: recentlyPlayed } = useRecentlyPlayed();
-    const [launchState, setLaunchState] = useState({ game: null, url: null });
+    const [selectedGame, setSelectedGame] = useState(null);
+    const [activeMechanic, setActiveMechanic] = useState(null);
 
-    const handleLaunch = async (game) => {
-        if (!isAuthenticated) {
-            logSDKEvent('UI', 'Unauthenticated launch. Failover to Simulation Mode.');
-            setLaunchState({ game, url: null });
-            return;
+    const mode = isAuthenticated ? 'real' : 'demo';
+    const { launchUrl, isLoading: isLaunching, error: launchError } = useGameLaunch(selectedGame?.id, { mode });
+
+    useEffect(() => {
+        if (launchError && launchError === 'DEMO_NOT_SUPPORTED') {
+            logSDKEvent('UI', 'Demo mode not supported by provider, falling back to mock game');
+        } else if (launchUrl) {
+            logSDKEvent('SDK', 'Game launch URL received', { url: launchUrl });
         }
+    }, [launchUrl, launchError]);
 
-        logSDKEvent('UI', `Launching game: ${game.name}...`);
-        try {
-            const apiUrl = import.meta.env.VITE_NEOSTRIKE_API_URL;
-            const apiKey = import.meta.env.VITE_NEOSTRIKE_API_KEY;
+    const handleCategorySelect = (cat) => {
+        filter({ category: cat });
+    };
 
-            const response = await fetch(`${apiUrl}/api/v1/games/${game.id}/launch`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-api-key': apiKey,
-                    'x-brand-id': '1'
-                },
-                body: JSON.stringify({ player_id: player.user_id, mode: 'real' })
-            });
+    const handleMechanicSelect = (mech) => {
+        setActiveMechanic(mech);
+        if (mech) filter({ tags: mech });
+        else filter({ tags: null });
+    };
 
-            if (!response.ok) throw new Error('Launch request failed');
-
-            const data = await response.json();
-            setLaunchState({ game, url: data.game_url });
-            logSDKEvent('SDK', 'Game launch URL received', { url: data.game_url });
-        } catch (err) {
-            logSDKEvent('ERROR', `Launch failed: ${err.message}. Failover to Simulation Mode.`);
-            setLaunchState({ game, url: null });
-        }
+    const handleLaunch = (game) => {
+        logSDKEvent('UI', `Attempting to launch game: ${game.name}...`);
+        setSelectedGame(game);
     };
 
     return (
         <div className="game-lobby" style={{ padding: '0 40px 40px' }}>
-            {/* SDK Filter Bar */}
-            <FilterBar 
-                filters={filters} 
-                setSearch={search} 
-                setCategory={(cat) => filter({ category: cat })}
-                setProvider={(p) => filter({ provider: p })}
+            {/* Category and Mechanic Navigation */}
+            <CategoryNav 
+                activeCategory={filters.category}
+                onSelectCategory={handleCategorySelect}
+                activeMechanic={activeMechanic}
+                onSelectMechanic={handleMechanicSelect}
             />
 
             {/* SDK Carousels */}
@@ -199,11 +265,12 @@ export const GameLobby = () => {
             </div>
 
             {/* Launch Overlay */}
-            {launchState.game && (
+            {selectedGame && (
                 <GameLauncher
-                    game={launchState.game}
-                    launchUrl={launchState.url}
-                    onClose={() => setLaunchState({ game: null, url: null })}
+                    game={selectedGame}
+                    launchUrl={(launchError === 'DEMO_NOT_SUPPORTED') ? null : launchUrl} /* Fallback to mock game */
+                    currentMode={mode}
+                    onClose={() => setSelectedGame(null)}
                 />
             )}
         </div>

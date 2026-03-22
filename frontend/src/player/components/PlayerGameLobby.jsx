@@ -1,4 +1,20 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { 
+    useBalance, 
+    useWebSocket, 
+    useGameFilters, 
+    useRecentlyPlayed, 
+    useFavourites, 
+    useLobbyCarousels 
+} from '../../sdk/hooks';
+import { 
+    FilterBar, 
+    LobbyCarousel, 
+    CashierModal, 
+    AccountDashboard,
+    InstallPrompt,
+    OfflineState 
+} from '../../sdk/components';
 
 const PROVIDER_LABELS = {
     evolution: 'Evolution',
@@ -37,6 +53,24 @@ function PlayerGameLobby({ token, user, onStatusUpdate }) {
     const [search, setSearch] = useState('');
     const [activeCategory, setActiveCategory] = useState('all');
     const [launchingId, setLaunchingId] = useState(null);
+    const [isCashierOpen, setIsCashierOpen] = useState(false);
+    const [isAccountOpen, setIsAccountOpen] = useState(false);
+
+    // SDK Context & Hooks
+    const { client } = useWebSocket();
+    const { balance } = useBalance();
+    const { 
+        games: catalogGames, 
+        loading: gamesLoading, 
+        filters, 
+        setSearch: setSdkSearch, 
+        setCategory: setSdkCategory, 
+        setProvider: setSdkProvider 
+    } = useGameFilters();
+    
+    const { games: recentlyPlayed } = useRecentlyPlayed();
+    const { isFavourite, toggleFavourite } = useFavourites();
+    const { carousels } = useLobbyCarousels();
 
     const fetchGames = useCallback(async () => {
         try {
@@ -81,6 +115,9 @@ function PlayerGameLobby({ token, user, onStatusUpdate }) {
             if (data.game_url) {
                 window.open(data.game_url, '_blank');
                 onStatusUpdate?.(`Launching ${game.name}...`);
+                
+                // SDK-02: Track activity
+                if (client) client.trackGameLaunch(game.id);
             }
         } catch (err) {
             onStatusUpdate?.('Failed to launch game');
@@ -92,55 +129,70 @@ function PlayerGameLobby({ token, user, onStatusUpdate }) {
     const categories = ['all', 'slots', 'live-casino'];
 
     return (
-        <section className="glass-panel" style={{ marginTop: '24px' }}>
-            <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-                <h3>🎮 Game Lobby</h3>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    {categories.map(cat => (
-                        <button
-                            key={cat}
-                            onClick={() => setActiveCategory(cat)}
-                            style={{
-                                padding: '6px 14px',
-                                borderRadius: '20px',
-                                border: 'none',
-                                fontSize: '0.8rem',
-                                cursor: 'pointer',
-                                fontWeight: activeCategory === cat ? 700 : 400,
-                                background: activeCategory === cat
-                                    ? 'var(--primary, #00ccff)'
-                                    : 'rgba(255,255,255,0.08)',
-                                color: activeCategory === cat ? '#000' : 'var(--text-muted, #aaa)',
-                                transition: 'all 0.2s ease'
-                            }}
-                        >
-                            {cat === 'all' ? '🌐 All' : CATEGORY_LABELS[cat] || cat}
-                        </button>
-                    ))}
-                    <input
-                        type="text"
-                        placeholder="Search games..."
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                        style={{
-                            padding: '6px 14px',
-                            borderRadius: '20px',
-                            border: '1px solid rgba(255,255,255,0.15)',
-                            background: 'rgba(255,255,255,0.05)',
-                            color: 'white',
-                            fontSize: '0.85rem',
-                            width: '160px',
-                            outline: 'none'
-                        }}
-                    />
-                </div>
-            </div>
+        <div className="sdk-lobby-wrapper">
+            <OfflineState />
+            <InstallPrompt />
 
-            {loading ? (
+            {/* Custom Header with Balance & Account */}
+            <header style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '24px 32px', background: 'rgba(0,0,0,0.2)', borderBottom: '1px solid rgba(255,255,255,0.05)'
+            }}>
+                <h2 style={{ margin: 0 }}>NEOSTRIKE LOBBY</h2>
+                <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
+                    <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: '0.7rem', opacity: 0.5 }}>BALANCE</div>
+                        <div style={{ fontWeight: 800, color: 'var(--primary)' }}>{balance.toFixed(2)} EUR</div>
+                    </div>
+                    <button onClick={() => setIsCashierOpen(true)} className="btn-primary" style={{ padding: '8px 20px' }}>DEPOSIT</button>
+                    <div 
+                        onClick={() => setIsAccountOpen(true)}
+                        style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(255,255,255,0.1)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    >👤</div>
+                </div>
+            </header>
+
+            <section className="glass-panel" style={{ marginTop: '24px', padding: '32px' }}>
+                {/* SDK-01: Filter Bar Integration */}
+                <FilterBar 
+                    filters={filters}
+                    setSearch={setSdkSearch}
+                    setCategory={setSdkCategory}
+                    setProvider={setSdkProvider}
+                    providers={[]} // Will be populated by backend or client
+                />
+
+                {recentlyPlayed.length > 0 && (
+                    <div style={{ marginTop: '32px' }}>
+                        <LobbyCarousel 
+                            title="Continue Playing" 
+                            games={recentlyPlayed} 
+                            onGameClick={handleLaunch}
+                            getTheme={getTheme}
+                        />
+                    </div>
+                )}
+
+                {carousels.map(carousel => (
+                    <div key={carousel.id} style={{ marginTop: '32px' }}>
+                        <LobbyCarousel 
+                            title={carousel.title} 
+                            games={carousel.games} 
+                            onGameClick={handleLaunch}
+                            getTheme={getTheme}
+                        />
+                    </div>
+                ))}
+
+                <div className="section-header" style={{ marginTop: '40px', display: 'flex', justifyContent: 'space-between' }}>
+                    <h3>🎮 All Games</h3>
+                </div>
+
+            {gamesLoading ? (
                 <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
                     Loading games...
                 </div>
-            ) : games.length === 0 ? (
+            ) : catalogGames.length === 0 ? (
                 <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
                     No games available in your lobby
                 </div>
@@ -151,7 +203,7 @@ function PlayerGameLobby({ token, user, onStatusUpdate }) {
                     gap: '16px',
                     padding: '16px 0'
                 }}>
-                    {games.map(game => {
+                    {catalogGames.map(game => {
                         const theme = getTheme(game);
                         return (
                             <div
@@ -163,20 +215,26 @@ function PlayerGameLobby({ token, user, onStatusUpdate }) {
                                     border: '1px solid rgba(255,255,255,0.08)',
                                     cursor: 'pointer',
                                     transition: 'all 0.2s ease',
-                                    opacity: launchingId === game.id ? 0.6 : 1
-                                }}
-                                onMouseEnter={e => {
-                                    e.currentTarget.style.transform = 'translateY(-4px) scale(1.02)';
-                                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)';
-                                    e.currentTarget.style.boxShadow = '0 12px 30px rgba(0,0,0,0.4)';
-                                }}
-                                onMouseLeave={e => {
-                                    e.currentTarget.style.transform = 'translateY(0) scale(1)';
-                                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
-                                    e.currentTarget.style.boxShadow = 'none';
+                                    opacity: launchingId === game.id ? 0.6 : 1,
+                                    position: 'relative'
                                 }}
                             >
-                                {/* Game Art: Gradient + Big Emoji */}
+                                {/* Favourite Toggle */}
+                                <button 
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleFavourite(game.id);
+                                    }}
+                                    style={{
+                                        position: 'absolute', top: '8px', right: '8px', zIndex: 5,
+                                        background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%',
+                                        width: '28px', height: '28px', cursor: 'pointer',
+                                        color: isFavourite(game.id) ? '#ff4444' : 'white'
+                                    }}
+                                >
+                                    {isFavourite(game.id) ? '❤️' : '🤍'}
+                                </button>
+
                                 <div style={{
                                     width: '100%',
                                     height: '110px',
@@ -188,32 +246,6 @@ function PlayerGameLobby({ token, user, onStatusUpdate }) {
                                     position: 'relative'
                                 }}>
                                     {theme.emoji}
-                                    {/* RTP badge top-right */}
-                                    {game.rtp && (
-                                        <span style={{
-                                            position: 'absolute',
-                                            top: '6px',
-                                            right: '8px',
-                                            fontSize: '0.65rem',
-                                            background: 'rgba(0,0,0,0.5)',
-                                            color: '#00ff88',
-                                            padding: '2px 6px',
-                                            borderRadius: '10px',
-                                            fontWeight: 700
-                                        }}>
-                                            {game.rtp}%
-                                        </span>
-                                    )}
-                                    {launchingId === game.id && (
-                                        <div style={{
-                                            position: 'absolute', inset: 0,
-                                            background: 'rgba(0,0,0,0.6)',
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                            color: 'white', fontSize: '0.8rem', fontWeight: 700
-                                        }}>
-                                            Launching...
-                                        </div>
-                                    )}
                                 </div>
                                 {/* Info */}
                                 <div style={{ padding: '10px 12px', background: 'rgba(0,0,0,0.3)' }}>
@@ -232,7 +264,20 @@ function PlayerGameLobby({ token, user, onStatusUpdate }) {
                     })}
                 </div>
             )}
+
+            <CashierModal 
+                isOpen={isCashierOpen} 
+                onClose={() => setIsCashierOpen(false)} 
+            />
+
+            {isAccountOpen && (
+                <AccountDashboard 
+                    user={user} 
+                    onClose={() => setIsAccountOpen(false)} 
+                />
+            )}
         </section>
+        </div>
     );
 }
 

@@ -8,6 +8,8 @@ export * from './hooks/useFavourites';
 export * from './hooks/useActivePromotions';
 export * from './hooks/useLobbyCarousels';
 export * from './hooks/useProfile';
+export * from './hooks/useGameLaunch';
+export * from './hooks/useSeamlessWalletBridge';
 
 // UI Components
 export * from './components';

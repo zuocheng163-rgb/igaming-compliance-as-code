@@ -1,3 +1,8 @@
+require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
-const sb = createClient('https://cxjirfmrdzlcnywttjun.supabase.co', 'sb_publishable_HBs0skVzeU52Oh7Vvrcawg_IqEwAYKW');
-sb.from('platform_audit_logs').select('*').limit(2).then(res => console.log(JSON.stringify(res.data, null, 2))).catch(console.error);
+const s = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+async function run() {
+  const { data, error } = await s.from('tenant_configs').select('*');
+  console.log(error || data);
+}
+run();

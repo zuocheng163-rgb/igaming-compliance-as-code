@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { useProfile, useBalance, useActivePromotions, useWebSocket } from '../hooks';
+import { useProfile, useBalance, useActivePromotions, useWebSocket, useSession } from '../hooks';
 
 const AccountDashboard = ({ user, isOpen, onClose }) => {
     const [activeTab, setActiveTab] = useState('profile');
-    const { loading, kycStatus, transactions, requestErasure, refresh: fetchProfileData } = useProfile();
-    const { balance, bonusBalance } = useBalance();
-    const { promotions } = useActivePromotions();
+    const { getToken } = useSession();
+    const token = getToken();
+    const { loading, kycStatus, transactions, requestErasure, refresh: fetchProfileData } = useProfile(user?.user_id);
+    const { balance, bonusBalance } = useBalance(user?.user_id, { token });
+    const { promotions, claimBonus } = useActivePromotions(user?.user_id);
     const [erasureStep, setErasureStep] = useState(0);
 
     // Use a placeholder if user is missing to prevent crashes
@@ -53,14 +55,20 @@ const AccountDashboard = ({ user, isOpen, onClose }) => {
             case 'wallet':
                 return (
                     <div className="sdk-tab-pane">
-                        <div style={{ ...sectionStyle, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                            <div className="glass-panel" style={balanceCardStyle}>
-                                <label>REAL BALANCE</label>
-                                <h3>{balance.toFixed(2)} EUR</h3>
-                            </div>
-                            <div className="glass-panel" style={{ ...balanceCardStyle, borderColor: 'rgba(255,215,0,0.3)' }}>
-                                <label>BONUS BALANCE</label>
-                                <h3 style={{ color: '#ffd700' }}>{bonusBalance.toFixed(2)} EUR</h3>
+                        <div style={{ ...sectionStyle }}>
+                            <div className="glass-panel" style={{ ...balanceCardStyle, width: '100%' }}>
+                                <label style={{ fontSize: '0.8rem', opacity: 0.6 }}>TOTAL BALANCE (WALLETS)</label>
+                                <h2 style={{ fontSize: '2.5rem', margin: '12px 0', color: 'var(--primary, #00ccff)', fontWeight: 900 }}>{(balance + bonusBalance).toFixed(2)} EUR</h2>
+                                <div style={{ display: 'flex', justifyContent: 'center', gap: '40px', marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                                    <div style={{ textAlign: 'center' }}>
+                                        <label style={{ fontSize: '0.7rem', opacity: 0.5, display: 'block', marginBottom: '4px' }}>REAL MONEY</label>
+                                        <span style={{ fontWeight: 800, fontSize: '1.1rem' }}>{balance.toFixed(2)} EUR</span>
+                                    </div>
+                                    <div style={{ textAlign: 'center' }}>
+                                        <label style={{ fontSize: '0.7rem', opacity: 0.5, display: 'block', marginBottom: '4px' }}>BONUS FUNDS</label>
+                                        <span style={{ fontWeight: 800, fontSize: '1.1rem', color: '#ffd700' }}>{bonusBalance.toFixed(2)} EUR</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <h4 style={sectionTitleStyle}>Recent Transactions</h4>
@@ -91,7 +99,21 @@ const AccountDashboard = ({ user, isOpen, onClose }) => {
                                         <div style={{ fontWeight: 700 }}>{p.name}</div>
                                         <div style={{ fontSize: '0.7rem', opacity: 0.6 }}>{p.description}</div>
                                     </div>
-                                    <button className="btn-primary" style={{ padding: '6px 12px', fontSize: '0.8rem' }}>Claim</button>
+                                    <button 
+                                        className="btn-primary" 
+                                        style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+                                        onClick={async () => {
+                                            try {
+                                                await claimBonus(p.id, 100);
+                                                window.dispatchEvent(new CustomEvent('neostrike-balance-refresh'));
+                                                alert('Bonus claimed successfully!');
+                                            } catch (e) {
+                                                alert('Failed to claim bonus');
+                                            }
+                                        }}
+                                    >
+                                        Claim
+                                    </button>
                                 </div>
                             )) : <div style={emptyStateStyle}>No active promotions for your account.</div>}
                         </div>

@@ -156,6 +156,7 @@ const createUser = async (userData) => {
     if (!supabase) throw new Error('Supabase not initialized');
     const brandId = userData.brand_id || 1;
     const publicUserId = userData.username || `user_${Date.now()}`;
+    const isDemo = process.env.DEMO_MODE === 'true';
     const newUser = {
         brand_id: brandId,
         user_id: publicUserId,
@@ -163,8 +164,8 @@ const createUser = async (userData) => {
         email: userData.email,
         first_name: userData.first_name,
         last_name: userData.last_name,
-        balance: userData.balance || 0,
-        bonus_balance: userData.bonus_balance || 0,
+        balance: userData.balance || (isDemo ? 1000.00 : 0),
+        bonus_balance: userData.bonus_balance || (isDemo ? 500.00 : 0),
         currency: userData.currency || 'EUR',
         registration_date: new Date().toISOString(),
         birth_date: userData.birth_date,
@@ -300,7 +301,12 @@ const toggleFavourite = async (userId, gameId) => {
         const { error } = await supabase
             .from('user_favourites')
             .insert({ user_id: user.id, game_id: gameId });
-        return { success: !error, status: 'added', is_favourite: true };
+        
+        if (error) {
+            logger.error('[Supabase] Failed to insert favourite', { userId: user.id, gameId, error });
+        }
+        
+        return { success: !error, status: 'added', is_favourite: true, error: error ? error.message : null };
     }
 };
 
@@ -381,7 +387,7 @@ const getUserTransactions = async (userId, limit = 50) => {
     const { data, error } = await supabase
         .from('transactions')
         .select('*')
-        .eq('user_id', user.username) // transactions table uses public user_id/username
+        .eq('user_id', user.id) // Fix: use UUID instead of username
         .order('created_at', { ascending: false })
         .limit(limit);
 

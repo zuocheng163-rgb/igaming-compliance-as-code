@@ -512,7 +512,12 @@ class WalletService {
         const user = await supabaseService.getUserById(userId);
         const country = user?.country || 'MT';
 
-        const providers = PaymentRoutingService.getProviderSequence(country, amount);
+        let providers = PaymentRoutingService.getProviderSequence(country, amount);
+        
+        // F9 Implementation: Bypass real providers in Demo/Developer mode to allow frontend testing without license errors
+        if (process.env.DEMO_MODE === 'true' && !providers.includes('Mock')) {
+            providers = ['Mock', ...providers];
+        }
         const retryDelays = [1000, 3000]; // Faster retries for orchestration v2
 
         for (const provider of providers) {

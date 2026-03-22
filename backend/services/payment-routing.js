@@ -14,7 +14,7 @@ class PaymentRoutingService {
         'MT': ['Adyen', 'Trustly', 'Stripe']
     };
 
-    static DEFAULT_SEQUENCE = ['Adyen', 'Stripe'];
+    static DEFAULT_SEQUENCE = ['Mock', 'Adyen', 'Stripe'];
 
     /**
      * Get the best provider sequence for a user's location

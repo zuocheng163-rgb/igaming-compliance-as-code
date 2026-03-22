@@ -16,6 +16,8 @@ class PaymentAdapters {
             case 'Adyen':
             case 'Stripe':
                 return this.mockGeneric(provider);
+            case 'Mock':
+                return this.mockAlwaysSuccess();
             case 'Trustly':
                 return this.mockTrustly();
             case 'Skrill':
@@ -53,6 +55,10 @@ class PaymentAdapters {
             method: 'Crypto',
             tx_hash: '0x' + Math.random().toString(16).substr(2, 64)
         };
+    }
+
+    static mockAlwaysSuccess() {
+        return { status: 'Approved', provider: 'Mock', method: 'Test' };
     }
 }
 

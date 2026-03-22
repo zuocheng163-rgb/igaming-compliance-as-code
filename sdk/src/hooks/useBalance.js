@@ -45,6 +45,8 @@ export const useBalance = (playerId, config = {}) => {
 
     useEffect(() => {
         fetchBalance();
+        window.addEventListener('neostrike-balance-refresh', fetchBalance);
+        return () => window.removeEventListener('neostrike-balance-refresh', fetchBalance);
     }, [fetchBalance]);
 
     const refresh = () => fetchBalance();

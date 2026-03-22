@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
+import { useSeamlessWalletBridge, useSession } from '@neostrike/sdk';
 import { logSDKEvent } from '@neostrike/sdk/src/utils';
 import theme from '../../theme.config';
 
@@ -100,44 +101,144 @@ const MockGame = ({ game, onClose }) => {
     );
 };
 
-export const GameLauncher = ({ game, launchUrl, onClose }) => {
+export const GameLauncher = ({ game, launchUrl, onClose, currentMode = 'real' }) => {
+    const iframeRef = useRef(null);
+    useSeamlessWalletBridge(iframeRef, currentMode);
+    const { timePlayed } = useSession();
+
     if (!game) return null;
+
+    const formatTime = (secs) => {
+        const h = Math.floor(secs / 3600);
+        const m = Math.floor((secs % 3600) / 60);
+        const s = secs % 60;
+        if (h > 0) return `${h}h ${m}m ${s}s`;
+        return `${m}m ${s}s`;
+    };
 
     return (
         <div style={{
             position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-            background: '#000', zIndex: 10000, display: 'flex', flexDirection: 'column'
+            background: '#0a0a0f', zIndex: 10000, display: 'flex', flexDirection: 'column'
         }}>
+            {/* Immersive Top Bar */}
             <div style={{
-                padding: '12px 24px', background: '#1a1a2e', display: 'flex',
-                justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #333'
+                padding: '12px 24px', background: 'linear-gradient(90deg, #1a1a2e 0%, #16213e 100%)', display: 'flex',
+                justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)'
             }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                     <button onClick={onClose} style={{
                         background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff',
-                        padding: '8px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold'
-                    }}>← BACK TO LOBBY</button>
+                        padding: '8px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold',
+                        transition: 'background 0.2s'
+                    }} onMouseEnter={e => e.target.style.background = 'rgba(255,255,255,0.2)'} onMouseLeave={e => e.target.style.background = 'rgba(255,255,255,0.1)'}>
+                        ← CLOSE GAME
+                    </button>
                     <div>
-                        <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '16px' }}>{game.name}</span>
-                        <span style={{ color: '#888', fontSize: '12px', marginLeft: '12px' }}>{game.provider}</span>
+                        <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '18px' }}>{game.name}</span>
+                        <span style={{ color: '#888', fontSize: '12px', marginLeft: '12px', textTransform: 'uppercase' }}>{game.provider.split(':')[0]}</span>
                     </div>
                 </div>
-                <div style={{
-                    color: launchUrl ? '#00ff88' : '#ffaa00',
-                    fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px',
-                    padding: '4px 12px', background: 'rgba(0,0,0,0.3)', borderRadius: '20px'
-                }}>
-                    {launchUrl ? 'LIVE SESSION ACTIVE' : 'SIMULATION MODE'}
+                
+                <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+                    {/* RG Active Session Clock */}
+                    <div style={{ 
+                        display: 'flex', alignItems: 'center', gap: '8px', 
+                        background: 'rgba(0,0,0,0.5)', padding: '6px 16px', borderRadius: '20px',
+                        border: timePlayed > 3000 ? '1px solid #ff4444' : '1px solid rgba(255,255,255,0.1)'
+                    }}>
+                        <span style={{ fontSize: '14px' }}>⏱️</span>
+                        <span style={{ color: timePlayed > 3000 ? '#ff4444' : '#fff', fontSize: '13px', fontWeight: 'bold', fontFamily: 'monospace' }}>
+                            {formatTime(timePlayed)}
+                        </span>
+                    </div>
+
+                    <div style={{
+                        color: launchUrl ? '#00ff88' : '#ffaa00',
+                        fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px',
+                        padding: '6px 14px', background: 'rgba(0,0,0,0.4)', borderRadius: '20px',
+                        border: `1px solid ${launchUrl ? '#00ff8833' : '#ffaa0033'}`
+                    }}>
+                        {launchUrl ? 'LIVE SESSION ACTIVE' : 'SIMULATION MODE'}
+                    </div>
                 </div>
             </div>
 
-            {launchUrl ? (
-                <div style={{ flex: 1, background: '#000' }}>
-                    <iframe src={launchUrl} title={game.name} style={{ width: '100%', height: '100%', border: 'none' }} allowFullScreen />
+            {/* Main Content Area */}
+            <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+                {/* Embedded Game Iframe / MockGame */}
+                <div style={{ flex: 1, background: '#000', position: 'relative' }}>
+                    {launchUrl ? (
+                        <iframe ref={iframeRef} src={launchUrl} title={game.name} style={{ display: 'block', width: '100%', height: '100%', border: 'none' }} allowFullScreen />
+                    ) : (
+                        <MockGame game={game} onClose={onClose} />
+                    )}
                 </div>
-            ) : (
-                <MockGame game={game} onClose={onClose} />
-            )}
+
+                {/* Right Sidebar */}
+                <div style={{ 
+                    width: '340px', background: '#13131e', borderLeft: '1px solid rgba(255,255,255,0.05)', 
+                    display: 'flex', flexDirection: 'column' 
+                }}>
+                    {/* Loyalty Rank Status */}
+                    <div style={{ padding: '24px', borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.02)' }}>
+                        <div style={{ fontSize: '12px', color: '#888', fontWeight: 'bold', letterSpacing: '1px', marginBottom: '16px' }}>LOYALTY RANK</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '20px' }}>
+                            <div style={{ 
+                                width: '56px', height: '56px', borderRadius: '50%', 
+                                background: 'linear-gradient(135deg, #FFD700, #FDB931)', 
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                                fontSize: '28px', boxShadow: '0 0 20px rgba(255, 215, 0, 0.3)' 
+                            }}>
+                                💎
+                            </div>
+                            <div>
+                                <div style={{ color: '#FFD700', fontWeight: 'bold', fontSize: '20px', textShadow: '0 0 10px rgba(255, 215, 0, 0.3)' }}>Gold Tier</div>
+                                <div style={{ color: '#aaa', fontSize: '13px', marginTop: '2px' }}>2,450 XP</div>
+                            </div>
+                        </div>
+                        <div style={{ background: 'rgba(0,0,0,0.5)', height: '6px', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div style={{ width: '75%', height: '100%', background: 'linear-gradient(90deg, #FFD700, #FDB931)', boxShadow: '0 0 10px #FFD700' }}></div>
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#666', marginTop: '10px', textAlign: 'right' }}>550 XP to Platinum</div>
+                    </div>
+
+                    {/* Recommended Games Cross-Sell */}
+                    <div style={{ padding: '24px', flex: 1, overflowY: 'auto' }}>
+                        <div style={{ fontSize: '12px', color: '#888', fontWeight: 'bold', letterSpacing: '1px', marginBottom: '20px' }}>RECOMMENDED FOR YOU</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            {[
+                                { name: 'Gates of Olympus', emoji: '🏛️', prov: 'Pragmatic' },
+                                { name: 'Lightning Roulette', emoji: '🎡', prov: 'Evolution' },
+                                { name: 'Starburst', emoji: '💎', prov: 'NetEnt' }
+                            ].map((g, i) => (
+                                <div 
+                                    key={i} 
+                                    style={{ 
+                                        display: 'flex', gap: '14px', padding: '12px', 
+                                        background: 'rgba(255,255,255,0.03)', borderRadius: '12px', 
+                                        cursor: 'pointer', transition: 'all 0.2s', border: '1px solid rgba(255,255,255,0.02)'
+                                    }} 
+                                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.transform = 'translateX(-4px)'; }} 
+                                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; e.currentTarget.style.transform = 'translateX(0)'; }}
+                                >
+                                    <div style={{ 
+                                        width: '64px', height: '64px', borderRadius: '10px', 
+                                        background: `hsl(${i * 60 + 260}, 60%, 25%)`, 
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px' 
+                                    }}>
+                                        {g.emoji}
+                                    </div>
+                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                                        <div style={{ color: '#fff', fontWeight: 'bold', fontSize: '14px', marginBottom: '4px' }}>{g.name}</div>
+                                        <div style={{ color: '#888', fontSize: '12px', textTransform: 'uppercase' }}>{g.prov}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };

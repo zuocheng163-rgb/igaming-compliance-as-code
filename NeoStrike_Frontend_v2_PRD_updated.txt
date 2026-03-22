@@ -1,0 +1,643 @@
+
+NEOSTRIKE
+Reference Frontend v2.0
+Product Requirements Document
+
+
+
+Slott-Inspired Casino Portal  ·  9 Components  ·  March 2026
+Confidential — Internal Product Use
+
+
+Executive Summary
+
+This PRD specifies NeoStrike Reference Frontend v2.0 — a Slott-inspired casino portal replacing the current minimal Starter Kit frontend with a complete, player-ready iGaming experience. The v2.0 frontend is an MIT-licensed React application operators clone, brand, and deploy. No bespoke frontend build is required.
+
+The design benchmark is Slott.com — specifically its lobby navigation architecture and individual game page layout. NeoStrike v2.0 retains all existing SDK hooks and adds the UI layers that currently require 3–5 weeks of operator effort. With v2.0, operator frontend work reduces to 2–4 days of branding and theming.
+
+Scope Boundary
+Frontend Reference implementation only. No new backend APIs, no new Fast Track events, no F8–F11 module changes. All data is sourced from existing SDK hooks. Gamification (XP, achievements, loyalty tiers) remain Fast Track Rewards' domain — NeoStrike renders Fast Track-provided data only.
+
+What Changed vs. Current v1.0
+Area
+v1.0 (Current)
+v2.0 (Target)
+Lobby navigation
+3 tabs only
+Full category bar (10 categories) + mechanic subcategory chips + provider/RTP/volatility filters
+Game tiles
+Emoji, provider badge, favourite only
++ RTP, volatility, mechanic tags, bonus eligibility badge, hover Quick Play overlay
+Game page
+Not implemented — bare iframe
+Full layout: top bar + tournament banner + iframe + RG session bar + right sidebar
+Right sidebar
+Not present
+Game Info tab (metadata + rank + session history) + Related Games tab
+Demo mode
+Not implemented
+Demo/Real toggle wired to useGameLaunch({ mode })
+Demo game
+Not present
+NeoStrike Slots — proprietary HTML5 slot for sales demos and operator onboarding
+Wallet modal
+Balance + 2 buttons
++ Live balance update + recent activity feed
+In-game RG surface
+None
+Persistent RG session bar below iframe on every game page
+Top navigation
+Logo + user icon
+Logo + mode tabs + search + deposit CTA + notifications + avatar
+
+Component Summary
+ID
+Component
+Type
+Purpose
+C-01
+Persistent Top Navigation
+Layout
+Always-visible nav bar across lobby and game page
+C-02
+Lobby Page
+Page
+Category nav, mechanic filters, favourites carousel, curated game grid
+C-03
+Game Page
+Page
+Game iframe, tournament banner, RG session bar, right sidebar
+C-04
+Enhanced Wallet Modal
+Component
+Live balance, recent activity, cashier and dashboard CTAs
+C-05
+useGameLaunch() Hook
+SDK Hook
+Game launch URL resolution with demo / real money mode
+C-06
+useRelatedGames() Hook
+SDK Hook
+Session depth driver — similar game recommendations
+C-07
+NeoStrike Demo Slot
+Demo Game
+Proprietary HTML5 slot for sales demos and operator onboarding
+C-08
+Fast Track Event Feed
+Component
+Live WAGER/WIN event visualiser for demo and onboarding contexts
+C-09
+Seamless Wallet Bridge
+Integration
+postMessage protocol connecting demo slot iframe to parent wallet state
+
+Component C-01  ·  Persistent Top Navigation
+Always-visible nav bar across lobby and game page
+
+Overview
+The current Starter Kit has a minimal header — logo and user icon only. The v2.0 top nav is visible on every page including during active gameplay, providing always-accessible deposit, search, and account controls. The deposit CTA remaining visible during a game session materially increases mid-session top-up rates — a confirmed conversion pattern across iGaming operators.
+
+Navigation Elements
+Element
+Desktop
+Mobile
+Behaviour
+Logo
+NeoStrike wordmark
+Icon only
+Links to lobby (/)
+Mode tabs
+Casino | Sport pill buttons
+Hidden (icon menu)
+Casino active by default; Sport is placeholder in v1
+Search bar
+Expandable, max 300px wide
+Tap to expand full-width overlay
+useGameFilters() with 300ms debounce; results as dropdown
+Deposit CTA
++ Deposit (primary button)
+Icon only
+Always visible including during gameplay; opens CashierModal
+Notifications
+Bell icon + unread dot
+Same
+Placeholder v1; wires to Fast Track campaign inbox in v2
+Avatar
+Circle icon
+Same
+Opens Wallet Modal
+
+Acceptance Criteria
+	•	Top nav renders at fixed position (z-index above game iframe) on all pages including during active gameplay.
+	•	Deposit CTA is visible and tappable at 375px viewport width during gameplay.
+	•	Search results dropdown appears within 400ms of keystroke without navigating away from current page.
+	•	Nav height: 60px desktop, 52px mobile. All touch targets minimum 44x44px (WCAG 2.1 AA).
+
+Component C-02  ·  Lobby Page
+Category navigation, mechanic filters, favourites carousel, curated game grid
+
+Overview
+The v2.0 lobby replaces the flat game grid with a structured, editorially-layered experience. Players navigate by intent (category chips) and by mechanic preference (mechanic filter chips). Both filter dimensions are independently and jointly selectable via useGameFilters().
+
+C-02a — Category Navigation Bar
+Horizontally scrollable chip bar immediately below the top nav. Each chip sets the primary filter and updates the URL for deep-linking.
+
+Category
+Filter Logic
+All Games
+No filter — full catalog
+Slots
+gameType = slots
+Live Casino
+gameType = live_casino
+Top Games
+Dynamic — top 20 by session count last 7 days (daily job)
+New Arrivals
+releaseDate = last_30_days
+Bonus Buy
+mechanic_tags includes bonus_buy
+Megaways
+mechanic_tags includes megaways
+Drop & Wins
+mechanic_tags includes drop_and_wins
+Jackpots
+mechanic_tags includes jackpot
+Table Games
+gameType = table_games
+
+C-02b — Mechanic Subcategory Filter Bar
+Secondary filter row for fine-grained browsing. Multi-select, combinable with category chips.
+
+	•	Provider chips — one per connected provider plus NeoStrike Demo (auto-expands as providers are added)
+	•	RTP threshold — 94%+, 95%+, 96%+, 97%+ (single-select)
+	•	Volatility — Low, Medium, High (multi-select)
+	•	Max win — 1,000x+, 5,000x+, 10,000x+ (single-select)
+
+Backend Dependency — Game Catalog API Extension
+Mechanic tags (bonus_buy, megaways, drop_and_wins, jackpot, tumble, avalanche, ante_bet) must be added as a structured mechanic_tags[] field. Components degrade gracefully — mechanic chips hidden until extension is deployed. NeoStrike Demo Slot is tagged with 'demo' and 'neostrike' and requires no backend change.
+
+C-02c — Favourites Carousel
+Horizontally scrollable carousel using useFavourites() (SDK-02). Visible only when the player has favourites. NeoStrike Demo Slot can be favourited. Hidden for anonymous users.
+
+C-02d — Enhanced Game Tile
+	•	Thumbnail — provider image (v1: gradient + emoji placeholder)
+	•	Provider badge — colour-coded per provider; NeoStrike Demo uses a branded purple-to-teal gradient badge
+	•	Favourite toggle — top left heart icon wired to useFavourites(). Optimistic update.
+	•	Mechanic tags — BUY BONUS, MEGAWAYS, TUMBLE, JACKPOT, DEMO. Max 2 visible; +N for extras.
+	•	Bonus eligibility badge — full-width strip when useActivePromotions().getGameBadges(gameId) returns results
+	•	Demo game strip — NeoStrike Slots renders a distinct 'Try It Now' strip in the platform primary colour
+	•	Hover overlay (desktop) — Quick Play button + RTP + volatility summary
+
+Acceptance Criteria
+	•	Category chip selection updates game grid within 400ms. URL query param updates simultaneously.
+	•	Mechanic filter chips are combinable — intersection logic applied across all active filters.
+	•	NeoStrike Demo Slot appears in All Games, Slots, and New Arrivals categories.
+	•	Favourites carousel hidden when useFavourites().games returns empty array.
+	•	Skeleton tiles render during API fetch — no layout shift (CLS = 0 target).
+
+Component C-03  ·  Game Page
+Full game experience: top bar, tournament banner, iframe, RG session bar, right sidebar
+
+Overview
+The game page is the most significant addition in v2.0. Based on the Slott game page layout, it delivers a two-column design: a game frame area with persistent controls and contextual overlays, plus a right sidebar. The left navigation panel present in some Slott layouts is explicitly excluded per product decision.
+
+Layout Decision — No Left Panel
+Two-column layout only: game frame area (flex: 1) + right sidebar (fixed 290px). This maximises iframe size on desktop and simplifies mobile collapse to full-width iframe with sidebar accessible as a bottom sheet.
+
+C-03a — Game Page Top Bar
+Element
+Behaviour
+Back arrow
+Returns to lobby. Warns player if active bonus wagering progress would be lost.
+Game title
+Display name from Game Catalog API. Updates on related game navigation.
+Session clock
+Live mm:ss timer from first WAGER event. Amber at 75% of session limit; red at 90%.
+Favourite toggle
+Heart icon via useFavourites(). Immediate optimistic update.
+Demo / Real toggle
+Switches mode. Reloads iframe with useGameLaunch({ mode }). DEMO watermark on iframe border. Wires to Seamless Wallet Bridge (C-09) for the demo slot.
+Home
+Returns to lobby root (/).
+
+C-03b — Tournament Banner
+Rendered above the iframe when useActivePromotions() returns a tournament-type promotion covering the current game. Displays: name, prize pool, animated live dot. Dismissible per session. Hidden when no applicable tournament is active — zero visual noise. NeoStrike Demo Slot is configured as tournament-eligible for demo purposes.
+
+C-03c — Game Iframe Container
+	•	Loading state — spinner overlay with game name and provider logo. Disappears on iframe load event or 3-second timeout.
+	•	iframe src — set by useGameLaunch(gameId, { mode }). Provider-specific URL from Game Provider Adapter. For NeoStrike Demo Slot, serves the built-in HTML5 game (C-07).
+	•	Demo mode — provider demo URL, no JWT, no wallet debit/credit. DEMO watermark on iframe border.
+	•	Seamless wallet — WAGER and WIN events continue via existing Seamless Wallet protocol for real provider games. For the demo slot, the Seamless Wallet Bridge (C-09) handles wallet sync via postMessage.
+
+C-03d — RG Session Bar
+Persistent slim bar below the iframe on every game page. Never dismissible.
+
+	•	Progress bar: current session duration vs. player's session time limit from useRGLimits()
+	•	Colour progression: green → amber at 75% → red at 90%
+	•	'Edit limits' shortcut: opens Account Dashboard to RG tab without interrupting the game session
+	•	No limit set: shows 'No session limit set' with 'Set limit' CTA
+	•	F11 Prolonged Session trigger: bar pulses red, modal prompts break. Wired to existing F11 in-session detection.
+
+Regulatory Rationale
+UKGC Social Responsibility Code requires players to access limit-setting tools without disrupting their session. The RG session bar satisfies this requirement on every game page — including the demo slot — ensuring the compliance story is demonstrable in every sales demo.
+
+C-03e — Right Sidebar: Game Info Tab
+Game Info Panel
+Structured metadata for the current game: RTP %, volatility, max win multiplier, bet range, mechanic tags as styled chips. For NeoStrike Demo Slot: RTP 96.00%, High volatility, 500x max win, €0.20–€5.00 bet range, DEMO and SEAMLESS WALLET tags.
+
+Rank Card
+Player's current rank and XP progress bar. Data from Fast Track Rewards player profile (read-only). Hidden if Fast Track rank data unavailable. NeoStrike implements no fallback rank engine.
+
+Recent Sessions
+Last 5 game sessions: thumbnail, name, provider, date, net result. For the NeoStrike Demo Slot, a live 'Now — active' row appears at the top of the list while a session is in progress, updating the net P&L in real time. Sourced from usePayments().getHistory() for real provider games; from the Seamless Wallet Bridge (C-09) for the demo slot.
+
+C-03f — Right Sidebar: Related Games Tab
+Surfaces similar games to keep players in session. Powered by useRelatedGames(gameId) (C-06). NeoStrike Demo Slot is related to all Pragmatic Play and NetEnt slots by provider and volatility matching — ensuring related games always contains real provider options to demonstrate the full catalog.
+
+Acceptance Criteria — Game Page
+	•	Game page route loads and iframe initialises within 3 seconds on 10Mbps connection.
+	•	Session clock starts on first WAGER event — not on page load. Demo slot WAGER events count.
+	•	Demo toggle sends MODE_CHANGE message to iframe via C-09 Seamless Wallet Bridge. Wallet balance unchanged in demo mode.
+	•	RG session bar updates every 60 seconds. At 90% of session limit, non-blocking toast prompts player.
+	•	useRelatedGames() results render within 200ms of page load (served from cached Game Catalog data).
+	•	Right sidebar hidden on mobile (< 768px). Accessible via bottom sheet triggered by 'Dashboard' button in top bar.
+	•	Live session row in Game Info tab updates net P&L within 500ms of each spin result during demo slot play.
+
+Component C-04  ·  Enhanced Wallet Modal
+Live balance, recent activity, cashier and dashboard CTAs
+
+Modal Sections
+Section
+Contents
+Data Source
+Balance card
+Total balance (large display), Real Cash line, Bonus line (accent colour). Updates in real time during demo slot play via C-09.
+useBalance() + C-09 postMessage bridge
+Quick actions
+Open Cashier (primary), Account Dashboard (secondary)
+Opens SDK-03 CashierModal or SDK-06 AccountDashboard
+Recent Activity
+Last 5 transactions: type, amount, sign. Includes spin wins and losses during demo slot real-money play.
+usePayments().getHistory({ limit: 5 })
+
+Acceptance Criteria
+	•	Wallet modal opens within 150ms of avatar or Deposit CTA tap.
+	•	Balance figures update immediately when a win or loss occurs in the demo slot during real money mode — no page reload required.
+	•	Desktop: dropdown from top-right nav. Mobile (< 480px): bottom sheet at 80vh.
+	•	Closes on overlay click and Escape key.
+
+Component C-05  ·  useGameLaunch() Hook
+Game launch URL resolution with demo / real money mode
+
+Overview
+Standardises game launch URL resolution across all providers and the NeoStrike Demo Slot. For real provider games, returns the authenticated Seamless Wallet URL. For the demo slot (gameId: 'neostrike-demo'), returns the built-in HTML5 game document directly without an external URL fetch.
+
+useGameLaunch() — Signature
+const { launchUrl, isLoading, error } = useGameLaunch(gameId, options?)
+
+Options: { mode: 'real' | 'demo', currency?: string, locale?: string }
+
+Behaviour
+	•	mode: 'real' — authenticated Seamless Wallet launch URL for real provider games; for demo slot, enables wallet debit/credit via C-09 bridge
+	•	mode: 'demo' — provider demo URL for real provider games; for demo slot, disables wallet integration (free play, no balance change)
+	•	gameId: 'neostrike-demo' — returns built-in HTML5 game srcdoc; no external URL fetch; no provider contract required
+	•	Provider without demo support: error returns DEMO_NOT_SUPPORTED; demo toggle disabled with tooltip
+	•	Launch URLs cached for session duration — repeated calls for same gameId+mode do not re-fetch
+
+Acceptance Criteria
+	•	Returns valid launch content within 200ms for all games including demo slot.
+	•	Demo mode URL contains no player JWT or session token.
+	•	gameId 'neostrike-demo' resolves without any network request.
+	•	DEMO_NOT_SUPPORTED renders as disabled toggle with tooltip — not a runtime error.
+
+Component C-06  ·  useRelatedGames() Hook
+Session depth driver — similar game recommendations from cached catalog data
+
+useRelatedGames() — Signature
+const { games, isLoading } = useRelatedGames(gameId, options?)
+
+Options: { maxResults?: number (default 8), strategy?: 'similar' | 'same_provider' | 'same_mechanic' }
+
+Similarity Algorithm
+Dimension
+Match Criteria
+Score Weight
+Provider
+Same provider
+3 points
+Volatility
+Exact match: 2pts; ±1 level: 1pt
+Up to 2 points
+RTP
+Within ±0.5%: 2pts; within ±1%: 1pt
+Up to 2 points
+Mechanic tags
+1pt per shared mechanic tag (max 3)
+Up to 3 points
+
+Ranked by total score descending. Ties broken by session count. Current game excluded. Minimum 3 results required — fallback to 'same_provider' strategy. NeoStrike Demo Slot uses a hardcoded related games list of Pragmatic Play and NetEnt titles (no score calculation required) so the sidebar always shows real provider games during a demo session.
+
+Acceptance Criteria
+	•	Returns results within 50ms when Game Catalog is cached (no network request).
+	•	Results correctly exclude the currently playing game in all cases.
+	•	Fallback to same_provider strategy activates when fewer than 3 games meet similarity threshold.
+	•	NeoStrike Demo Slot always returns at least 5 related games from the real provider catalog.
+
+Component C-07  ·  NeoStrike Demo Slot
+Proprietary HTML5 slot game for sales demos and operator onboarding
+
+Purpose and Scope
+NeoStrike Demo Slot is a proprietary, self-contained HTML5 slot game built to serve two specific use cases: sales demonstrations to prospects who do not yet have a provider contract, and operator onboarding testing where operators need to validate wallet, bonus, and RG flows before their provider integration is live.
+
+Scope Constraint
+The demo slot is not a commercial game. It is not subject to RNG certification, gaming licence requirements, or player accessibility by the general public. It is a demonstration and testing tool only. It must never be presented to players as a real gambling product. The demo/real money toggle must always be visible and clearly labelled when the demo slot is loaded.
+
+Game Mechanic
+A 3-reel, 1-payline slot with 6 symbol types. All game logic runs client-side in the browser. The RNG uses Math.random() — not a cryptographically certified RNG. This is intentional: the demo slot demonstrates the platform integration, not the statistical properties of the game.
+
+Symbol
+Payout Multiplier (3-of-a-kind)
+2-of-a-kind
+Cherry (most common)
+2x bet
+0.5x bet
+Lemon
+2.5x bet
+0.5x bet
+Grape
+3x bet
+0.5x bet
+Bell
+4x bet
+0.5x bet
+Star
+5x bet
+0.5x bet
+Diamond (rarest)
+10x bet
+0.5x bet
+
+Bet Denominations
+Level
+Bet Amount
+1 (default)
+€0.20
+2
+€0.50
+3
+€1.00
+4
+€2.00
+5
+€5.00
+
+Game UI Elements
+	•	3 reels — 90x90px tiles, spin animation at 80ms intervals, 14 ticks before settling
+	•	Win line — 2px rule between reels; turns accent green on any winning combination
+	•	Result display — win amount shown in accent green; loss/no match shown in muted colour
+	•	Bet slider — 5-stop range input wired to bet denominations
+	•	Spin button — primary action; disabled during spin animation; re-enables on result
+	•	Mode indicator strip — shows Demo / Real money state with colour-coded dot and current wallet balance
+	•	Fast Track event strip — last 4 WAGER and WIN events displayed inline within the game UI
+
+Demo vs. Real Money Mode
+Behaviour
+Demo Mode
+Real Money Mode
+Wallet debit on spin
+No — free play
+Yes — useBalance() debit via C-09
+Wallet credit on win
+No
+Yes — useBalance() credit via C-09
+WAGER event published
+Logged in game UI only
+Published to Fast Track via parent page
+WIN event published
+Logged in game UI only
+Published to Fast Track via parent page
+Balance shown in game
+Static display only
+Live balance from useBalance() via C-09
+Insufficient balance warning
+Never shown
+Shown when realBalance < betAmount
+
+Acceptance Criteria
+	•	Demo slot loads within 1 second of game page iframe initialisation — no external assets required.
+	•	Spin animation completes in 1.12 seconds (14 ticks at 80ms) on every spin.
+	•	Win detection is correct for all 6 symbol types and both 3-of-a-kind and 2-of-a-kind outcomes.
+	•	In real money mode, balance debit occurs before the spin animation starts — consistent with Seamless Wallet protocol (debit on WAGER, credit on WIN).
+	•	Switching from demo to real mode via the parent page toggle updates the game's mode within 200ms via C-09 postMessage.
+	•	The mode indicator strip always shows the current mode and current real balance — never shows a stale value.
+	•	The demo slot renders correctly at all viewport sizes from 320px to 1920px width.
+	•	Demo slot never makes any external network requests — fully self-contained.
+
+Component C-08  ·  Fast Track Event Feed
+Live WAGER/WIN event visualiser for demo and onboarding contexts
+
+Overview
+The Fast Track Event Feed is a non-intrusive overlay panel that appears in the bottom-right corner of the screen whenever the NeoStrike Demo Slot is active. It visualises the WAGER and WIN events that NeoStrike would publish to Fast Track Rewards in a live operator environment — making the event flow tangible and demonstrable to sales prospects and operators in onboarding.
+
+Display Context
+The Fast Track Event Feed is shown only when the demo slot game page is active. It is hidden on the lobby page and on real provider game pages. Its purpose is purely demonstrative — in a production operator environment, Fast Track events are consumed server-side by Fast Track Rewards and are not visible to players.
+
+Feed Behaviour
+	•	Positioned: fixed bottom-right, 16px from edges, z-index above game page but below wallet modal
+	•	Shows last 5 events maximum — older events scroll out automatically
+	•	Each event entry: event name (bold, primary colour), detail string, amount (positive green / negative muted)
+	•	New events slide in from the right with a 300ms CSS animation
+	•	Events displayed: WAGER, WIN, LOGIN (session start), MODE_CHANGE (demo/real switch)
+	•	WIN events include symbol combination and multiplier in the detail string
+
+Event Format
+Event
+Detail Example
+Amount
+LOGIN
+session started · NeoStrike Slots
+—
+WAGER
+bet €0.50
+−€0.50
+WIN
+⭐×3 @ 5x
+＋€2.50
+WAGER
+2-match partial
+—
+WIN
+partial match · 0.5x
+＋€0.25
+
+Acceptance Criteria
+	•	Event feed appears within 500ms of the demo slot game page becoming active.
+	•	Feed disappears immediately when the player navigates back to the lobby.
+	•	Maximum 5 events visible at any time — 6th event pushes oldest off the bottom.
+	•	WIN event amounts match the exact payout credited to the wallet in real money mode.
+	•	Feed is non-interactive — no click targets, no hover states. Pointer events pass through to elements beneath.
+
+Component C-09  ·  Seamless Wallet Bridge
+postMessage protocol connecting demo slot iframe to parent wallet state
+
+Overview
+The Seamless Wallet Bridge is the integration layer that allows the NeoStrike Demo Slot — running inside a sandboxed iframe — to communicate balance changes and game events to the parent page. It mirrors the role of the Seamless Wallet API (F9) in a real provider integration: the parent page acts as the wallet server, the iframe acts as the game client.
+
+Why postMessage?
+Real provider games communicate with NeoStrike's Seamless Wallet via server-to-server API calls (provider server → NeoStrike wallet endpoint). The demo slot runs entirely in the browser with no server component. The postMessage API is the browser-native equivalent — it allows the iframe (game) to send structured messages to the parent window (wallet) with the same security boundary as a cross-origin server call.
+
+Message Protocol — Iframe to Parent
+Message Type
+Payload
+Parent Action
+BALANCE_UPDATE
+{ type, real: number, win?: number }
+Updates useBalance() state; refreshes wallet modal display; updates live session row in sidebar
+FT_EVENT
+{ type, event: string, detail: string, amount: number|null }
+Appends event to Fast Track Event Feed (C-08)
+
+Message Protocol — Parent to Iframe
+Message Type
+Payload
+Iframe Action
+MODE_CHANGE
+{ type, demo: boolean }
+Switches between demo and real money mode; updates mode indicator strip
+BALANCE_SYNC
+{ type, real: number }
+Updates the balance display inside the game UI to match the current parent wallet state
+
+Security Constraints
+	•	All postMessage calls from the parent specify targetOrigin: '*' in development and the operator's domain in production — messages are never broadcast to arbitrary origins in production.
+	•	The iframe is sandboxed with allow-scripts allow-same-origin — it cannot access localStorage, cookies, or other browser APIs outside the game sandbox.
+	•	No financial data is persisted inside the iframe — all balance state lives in the parent page's useBalance() hook.
+	•	BALANCE_UPDATE messages from the iframe are validated: the debit amount must match the current bet denomination, and the credit amount must match a valid payout multiple. Mismatched amounts are rejected silently.
+
+Acceptance Criteria
+	•	BALANCE_UPDATE message from iframe updates the parent wallet display within 200ms.
+	•	MODE_CHANGE message from parent updates the iframe's mode indicator within 200ms.
+	•	Wallet balance in parent and wallet balance displayed inside the demo slot are always identical within 1 second of any spin result.
+	•	Switching mode from real to demo while a spin is in progress does not cause a balance inconsistency — in-flight spin resolves in the mode it started in.
+	•	Navigating away from the game page (back to lobby) while a spin is in progress does not cause an orphaned balance debit — the parent validates all BALANCE_UPDATE messages against an active session flag.
+
+Delivery Plan
+
+Sprint Allocation
+Sprint
+Deliverables
+Dependencies
+FE Sprint A
+C-01 Top Nav, C-04 Wallet Modal, C-05 useGameLaunch(), C-09 Seamless Wallet Bridge
+None — all additive to existing Reference Frontend
+FE Sprint B
+C-02 Lobby page (all sub-components), C-07 NeoStrike Demo Slot, C-08 Fast Track Event Feed
+SDK-02 useFavourites() must be complete (SDK Sprint A)
+FE Sprint C
+C-03 Game page (all sub-components), C-06 useRelatedGames()
+C-09 Seamless Wallet Bridge (FE Sprint A), SDK-04 useActivePromotions(), Game Catalog API mechanic_tags extension
+Backend (parallel)
+Game Catalog API: add mechanic_tags[] field, tag all existing games
+Evolution, Pragmatic Play, NetEnt mechanic metadata
+
+Demo Slot Use Case Matrix
+Use Case
+Mode
+Wallet Connected
+Fast Track Events
+RG Bar
+Notes
+Sales demo — prospect has no account
+Demo
+No
+Visible in feed (simulated)
+Yes — shows RG story
+Default state for sales meetings
+Sales demo — prospect wants to see wallet flow
+Real
+Yes (demo balance)
+Published to parent page
+Yes
+Switch mode to Real, pre-load €500 demo balance
+Operator onboarding — test wallet integration
+Real
+Yes (operator test account)
+Published to Fast Track sandbox
+Yes
+Validates WAGER/WIN event flow end-to-end
+Operator onboarding — test bonus wagering
+Real
+Yes + bonus balance
+Published with wagering progress
+Yes
+Validates F8 Bonus Wallet contribution tracking
+Operator onboarding — test RG detection
+Real
+Yes
+Published
+Yes — F11 active
+Rapid spins trigger in-session detection patterns
+
+Mobile Behaviour Summary
+Component
+Desktop
+Mobile (< 768px)
+Top Nav
+Full: logo + tabs + search + deposit + notif + avatar
+Compact: logo + deposit icon + avatar
+Lobby category bar
+Horizontal chip row
+Horizontally scrollable
+Game grid
+5–6 columns
+2 columns
+Game page layout
+iframe + right sidebar (290px)
+Full-width iframe; sidebar via bottom sheet
+RG session bar
+Always visible below iframe
+Always visible below iframe (full width)
+Demo slot
+Full 360px max-width layout
+Full-width responsive; controls stack vertically
+FT Event Feed
+Bottom-right fixed overlay
+Hidden on mobile — events shown in demo slot game UI only
+
+Out of Scope — v2.0
+	•	Left navigation sidebar panel (explicitly excluded per product decision)
+	•	Gamification engine — XP progression, achievement rules, rank thresholds (Fast Track Rewards domain)
+	•	Tournament lifecycle management — NeoStrike renders tournament data, does not manage it
+	•	Native iOS / Android app — PWA configuration covered in SDK-07
+	•	Sportsbook page — Sport nav tab is placeholder; sportsbook frontend is a future PRD
+	•	Cryptocurrency payment UI — F9 architectural decision, not a frontend concern
+	•	RNG certification for demo slot — demo slot uses Math.random() and is not a certifiable game product
+
+Success Metrics
+Metric
+Target
+Measurement
+Operator frontend effort (new onboardings)
+< 4 days total theming
+Onboarding project logs
+Sales demo conversion (prospect to trial)
+Baseline + 20%
+CRM opportunity stage progression after demo
+Operator onboarding time (contract to first WAGER event)
+< 48 hours
+Tenant Portal first WAGER event timestamp minus contract date
+Lobby to game launch conversion
+Baseline + 15%
+Game launch events / lobby session count
+Games per session (depth)
+Baseline + 20%
+WIN + WAGER event sequence per session
+Demo to real money conversion
+> 25% of demo sessions
+useGameLaunch mode switch events
+In-game RG limit access rate
+Measurable (currently 0)
+useRGLimits() calls originating from game page context
+
+NeoStrike Platform  ·  Reference Frontend v2.0 PRD  ·  9 Components  ·  March 2026  ·  Confidential — Internal Product Use

@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { usePayments } from '../hooks';
+import { usePayments, useSession } from '../hooks';
 
-const CashierModal = ({ isOpen, onClose, onTransactionSuccess }) => {
+const CashierModal = ({ user, isOpen, onClose, onTransactionSuccess }) => {
     const [activeTab, setActiveTab] = useState('deposit');
+    const { getToken } = useSession();
+    const token = getToken();
     const [methods, setMethods] = useState([]);
     const [selectedMethod, setSelectedMethod] = useState(null);
     const [amount, setAmount] = useState('100');
-    const { loading, error, getMethods, submitPayment } = usePayments();
+    const { loading, error, getMethods, submitPayment } = usePayments(user?.user_id, { token });
     const [status, setStatus] = useState(null);
 
     useEffect(() => {
@@ -35,6 +37,7 @@ const CashierModal = ({ isOpen, onClose, onTransactionSuccess }) => {
 
         if (result.success) {
             setStatus({ type: 'success', message: `Successfully ${activeTab === 'deposit' ? 'deposited' : 'withdrawn'} ${amount} EUR` });
+            window.dispatchEvent(new CustomEvent('neostrike-balance-refresh'));
             if (onTransactionSuccess) onTransactionSuccess(result);
             setTimeout(onClose, 2000);
         } else {

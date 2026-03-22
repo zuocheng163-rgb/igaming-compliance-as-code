@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useBalance, useSession, CashierModal, AccountDashboard } from '@neostrike/sdk';
+import React, { useState, useEffect } from 'react';
+import { useBalance, useSession, useProfile, CashierModal, AccountDashboard } from '@neostrike/sdk';
 import { logSDKEvent } from '@neostrike/sdk/src/utils';
 import theme from '../../theme.config';
 
@@ -7,8 +7,12 @@ export const WalletDrawer = ({ isOpen, onClose, player }) => {
     const { getToken } = useSession();
     const sessionToken = getToken();
     const { balance, bonusBalance, currency, refresh } = useBalance(player?.user_id, { token: sessionToken });
+    const { transactions, loading: isLoadingTx } = useProfile();
+    
     const [isCashierOpen, setCashierOpen] = useState(false);
     const [isAccountOpen, setAccountOpen] = useState(false);
+
+    const recentTransactions = (transactions || []).slice(0, 5);
 
     if (!isOpen) return null;
 
@@ -109,9 +113,32 @@ export const WalletDrawer = ({ isOpen, onClose, player }) => {
                     </div>
 
                     <div style={{ marginTop: '40px', padding: '20px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                        <div style={{ fontSize: '11px', color: '#444', textTransform: 'uppercase', marginBottom: '10px' }}>Recent Activity</div>
-                        <div style={{ fontSize: '13px', color: '#666', fontStyle: 'italic' }}>
-                            View full history in Account Dashboard
+                        <div style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', marginBottom: '16px', letterSpacing: '1px' }}>Recent Activity</div>
+                        
+                        {isLoadingTx ? (
+                            <div style={{ fontSize: '13px', color: '#666', textAlign: 'center' }}>Loading...</div>
+                        ) : recentTransactions.length > 0 ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                {recentTransactions.map((tx, idx) => (
+                                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.02)' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                            <span style={{ fontSize: '13px', fontWeight: 'bold' }}>{tx.type || tx.description || 'Transaction'}</span>
+                                            <span style={{ fontSize: '11px', color: '#666' }}>{new Date(tx.created_at || Date.now()).toLocaleDateString()}</span>
+                                        </div>
+                                        <div style={{ fontSize: '14px', fontWeight: 'bold', color: (tx.amount || 0) > 0 ? theme.colors.secondary : '#fff' }}>
+                                            {(tx.amount || 0) > 0 ? '+' : ''}{tx.amount || tx.value || 0}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div style={{ fontSize: '13px', color: '#666', fontStyle: 'italic', textAlign: 'center' }}>
+                                No recent transactions
+                            </div>
+                        )}
+                        
+                        <div style={{ fontSize: '12px', color: '#666', marginTop: '16px', textAlign: 'center', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => setAccountOpen(true)}>
+                            View full history in Account
                         </div>
                     </div>
                 </div>
@@ -125,6 +152,7 @@ export const WalletDrawer = ({ isOpen, onClose, player }) => {
             <CashierModal 
                 isOpen={isCashierOpen} 
                 onClose={() => setCashierOpen(false)} 
+                user={player}
                 onTransactionSuccess={() => {
                     refresh();
                     logSDKEvent('UI', 'Transaction successful, refreshing balance');

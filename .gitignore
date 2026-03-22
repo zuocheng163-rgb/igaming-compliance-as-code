@@ -1,8 +1,15 @@
+.env
+.env.*
+.env.vercel
+backend/scripts/
+backend/check-db.js
+backend/debug_config.js
+backend/seed_balances.js
+backend/test_*.js
+backend/verify_user.js
 node_modules
 .DS_Store
 dist
 build
-.env
 coverage
 .vercel
-.env*.local

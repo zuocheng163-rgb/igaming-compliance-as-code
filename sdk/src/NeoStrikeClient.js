@@ -34,6 +34,11 @@ class NeoStrikeClient {
         return response.data;
     }
 
+    async getGameLaunchUrl(gameId, options = {}) {
+        const response = await this.client.post(`/api/v1/games/${gameId}/launch`, options);
+        return response.data; // Expected: { url: '...' }
+    }
+
     async getRecentlyPlayed() {
         const response = await this.client.get('/api/user/recently-played');
         return response.data;
@@ -54,7 +59,7 @@ class NeoStrikeClient {
     }
 
     async getPaymentMethods(type = 'deposit') {
-        const response = await this.client.get(`/api/payments/methods?type=${type}`);
+        const response = await this.client.get(`/api/v1/payments/methods?type=${type}`);
         return response.data;
     }
 
@@ -65,6 +70,11 @@ class NeoStrikeClient {
 
     async getActivePromotions() {
         const response = await this.client.get('/api/promotions/active');
+        return response.data;
+    }
+
+    async claimBonus(bonusCode, amount) {
+        const response = await this.client.post('/api/promotions/claim', { bonus_code: bonusCode, amount: amount });
         return response.data;
     }
 

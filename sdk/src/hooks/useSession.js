@@ -1,14 +1,50 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import axios from 'axios';
 import { getEnv, logSDKEvent } from '../utils';
 
 // In-memory token storage (XSS Mitigation)
 let authToken = null;
+let globalTimePlayed = 0;
+let sessionSubscribers = [];
+let sessionInterval = null;
 
 export const useSession = (config = {}) => {
     const [player, setPlayer] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [timePlayed, setTimePlayed] = useState(globalTimePlayed);
+
+    useEffect(() => {
+        sessionSubscribers.push(setTimePlayed);
+
+        if (!sessionInterval) {
+            sessionInterval = setInterval(() => {
+                if (authToken) {
+                    globalTimePlayed += 1;
+                    sessionSubscribers.forEach(fn => fn(globalTimePlayed));
+
+                    // Trigger alert at exactly 60 minutes
+                    if (globalTimePlayed === 3600) {
+                        window.dispatchEvent(new CustomEvent('neostrike-simulate-alert', {
+                            detail: {
+                                title: 'Play Break Reminder',
+                                message: 'You have been playing for 60 minutes. Would you like to take a short break?',
+                                severity: 'info'
+                            }
+                        }));
+                    }
+                }
+            }, 1000);
+        }
+
+        return () => {
+            sessionSubscribers = sessionSubscribers.filter(fn => fn !== setTimePlayed);
+            if (sessionSubscribers.length === 0 && sessionInterval) {
+                clearInterval(sessionInterval);
+                sessionInterval = null;
+            }
+        };
+    }, []);
 
     const login = useCallback(async (username, password) => {
         setLoading(true);
@@ -74,6 +110,8 @@ export const useSession = (config = {}) => {
     const logout = () => {
         const username = player?.username;
         authToken = null;
+        globalTimePlayed = 0; // Reset session time on logout
+        sessionSubscribers.forEach(fn => fn(0));
         setPlayer(null);
         logSDKEvent('AUTH', `User ${username} logged out`);
     };
@@ -86,6 +124,7 @@ export const useSession = (config = {}) => {
         isAuthenticated: !!player && !!authToken,
         loading,
         error,
+        timePlayed,
         getToken: () => authToken
     };
 };
