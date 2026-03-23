@@ -2,18 +2,27 @@ import React, { useState, useMemo } from 'react';
 import { useSession, NeoStrikeProvider } from '@neostrike/sdk';
 import { GameLobby } from './components/GameLobby';
 import { WalletDrawer } from './components/WalletDrawer';
-import { TopNav } from './components/TopNav';
+import { Sidebar } from './components/Sidebar';
+import { HeaderBar } from './components/HeaderBar';
 import { FastTrackFeed } from './components/FastTrackFeed';
 import { AlertModal } from './components/AlertModal';
 import { SDKConsole } from './components/SDKConsole';
 import { OfflineState, InstallPrompt } from '@neostrike/sdk';
-import theme from '../theme.config';
 
-function App() {
+function AppInner() {
     const { player, login, isAuthenticated, logout } = useSession();
     const [isWalletOpen, setWalletOpen] = useState(false);
     const [token, setToken] = useState(localStorage.getItem('ns_session_token') || '');
     const [username, setUsername] = useState(localStorage.getItem('ns_username') || '');
+    const [activePage, setActivePage] = useState('home');
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+    React.useEffect(() => {
+        const check = () => setIsMobile(window.innerWidth < 768);
+        window.addEventListener('resize', check);
+        return () => window.removeEventListener('resize', check);
+    }, []);
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -38,41 +47,58 @@ function App() {
         localStorage.removeItem('ns_username');
     };
 
+    return (
+        <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--color-base)' }}>
+            <OfflineState />
+            <InstallPrompt />
+
+            {/* Fixed Left Sidebar (F12-B) */}
+            <Sidebar
+                activePage={activePage}
+                onNavigate={setActivePage}
+                isOpen={sidebarOpen}
+                onClose={() => setSidebarOpen(false)}
+            />
+
+            {/* Main Content Area */}
+            <div className="f12-main" style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                {/* Header Bar (F12-B) */}
+                <HeaderBar
+                    onOpenWallet={() => setWalletOpen(true)}
+                    onLogin={handleLogin}
+                    onLogout={handleLogout}
+                    isMobile={isMobile}
+                    onHamburger={() => setSidebarOpen(true)}
+                />
+
+                {/* Page Content */}
+                <main style={{ flex: 1, padding: 'var(--space-xl)' }}>
+                    <GameLobby />
+                </main>
+            </div>
+
+            <WalletDrawer isOpen={isWalletOpen} onClose={() => setWalletOpen(false)} player={player} />
+            <AlertModal />
+            <SDKConsole />
+            <FastTrackFeed />
+        </div>
+    );
+}
+
+function App() {
+    const [token] = useState(localStorage.getItem('ns_session_token') || '');
+    const [username] = useState(localStorage.getItem('ns_username') || '');
+
     const config = useMemo(() => ({
         apiUrl: 'https://igaming-product.vercel.app',
-        token: token,
-        username: username,
+        token,
+        username,
         brandId: '1'
     }), [token, username]);
 
     return (
         <NeoStrikeProvider config={config}>
-            <div className="app" style={{
-                background: theme.colors.background,
-                minHeight: '100vh',
-                fontFamily: theme.fonts.body,
-                color: theme.colors.text
-            }}>
-                <OfflineState />
-                <InstallPrompt />
-                
-                <TopNav 
-                    player={player} 
-                    isAuthenticated={isAuthenticated} 
-                    onOpenWallet={() => setWalletOpen(true)} 
-                    onLogout={handleLogout} 
-                    onLogin={handleLogin} 
-                />
-
-                <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px' }}>
-                    <GameLobby />
-                </main>
-
-                <WalletDrawer isOpen={isWalletOpen} onClose={() => setWalletOpen(false)} player={player} />
-                <AlertModal />
-                <SDKConsole />
-                <FastTrackFeed />
-            </div>
+            <AppInner />
         </NeoStrikeProvider>
     );
 }

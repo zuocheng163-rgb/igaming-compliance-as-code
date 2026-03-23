@@ -178,9 +178,15 @@
 <body>
     <div class="game-canvas">
         <div class="mode-indicator" id="modeStrip">
-            <div id="modeBadge" class="mode-demo">
-                <span class="dot"></span>
-                <span id="modeLabel">DEMO MODE</span>
+            <div style="display:flex;align-items:center;gap:16px;">
+                <a href="/" style="color:#888;font-size:11px;text-decoration:none;font-weight:600;letter-spacing:1px;display:flex;align-items:center;gap:6px;"
+                   onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#888'">
+                    ← LOBBY
+                </a>
+                <div id="modeBadge" class="mode-demo">
+                    <span class="dot"></span>
+                    <span id="modeLabel">FREE PLAY</span>
+                </div>
             </div>
             <div id="balanceLabel">BALANCE: €1,000.00</div>
         </div>
@@ -190,9 +196,9 @@
             
             <div class="reels-container">
                 <div class="win-line" id="winLine"></div>
-                <div class="reel-tile" id="r1">?</div>
-                <div class="reel-tile" id="r2">?</div>
-                <div class="reel-tile" id="r3">?</div>
+                <div class="reel-tile" id="r1">🍒</div>
+                <div class="reel-tile" id="r2">🍋</div>
+                <div class="reel-tile" id="r3">🍇</div>
                 <div class="result-display" id="resultDisplay">READY TO SPIN</div>
             </div>
 
@@ -242,7 +248,7 @@
         if (new URLSearchParams(window.location.search).get('mode') === 'real') {
             isReal = true;
             ui.modeBadge.className = 'mode-real';
-            ui.modeLabel.textContent = 'REAL MONEY MODE';
+            ui.modeLabel.textContent = 'WALLET SIMULATION';
         }
 
         function updateBalanceUI() {
@@ -269,7 +275,7 @@
             if (d.type === 'MODE_CHANGE') {
                 isReal = !d.demo;
                 ui.modeBadge.className = isReal ? 'mode-real' : 'mode-demo';
-                ui.modeLabel.textContent = isReal ? 'REAL MONEY MODE' : 'DEMO MODE';
+                ui.modeLabel.textContent = isReal ? 'WALLET SIMULATION' : 'FREE PLAY';
                 if (!isReal) ui.balanceError.style.display = 'none';
             }
             if (d.type === 'BALANCE_SYNC') {
@@ -363,6 +369,8 @@
         }
 
         updateBalanceUI();
+        // Seed reels with random symbols on load
+        ui.reels.forEach(r => r.textContent = symbols[Math.floor(Math.random() * symbols.length)].icon);
     </script>
 </body>
 </html>

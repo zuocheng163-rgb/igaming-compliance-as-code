@@ -1,38 +1,132 @@
-body {
+/* ═══════════════════════════════════════════════════════════════
+   F12-A · NeoStrike Design System — Global CSS Tokens & Resets
+   ═══════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=DM+Sans:wght@400;500&family=JetBrains+Mono:wght@400&display=swap');
+
+/* ── Colour Tokens ─────────────────────────────────────────────── */
+:root {
+  /* Surfaces */
+  --color-base:             #0D1F12;
+  --color-surface:          #152A1A;
+  --color-surface-raised:   #1E3A25;
+  --color-surface-overlay:  #243F2B;
+
+  /* Accent */
+  --color-accent:           #00E676;
+  --color-accent-dim:       #00C853;
+  --color-accent-glow:      rgba(0, 230, 118, 0.12);
+
+  /* Text */
+  --color-text-primary:     #EAEFEA;
+  --color-text-secondary:   #8DA98D;
+  --color-text-muted:       #516651;
+
+  /* Borders */
+  --color-border:           rgba(255, 255, 255, 0.07);
+  --color-border-strong:    rgba(255, 255, 255, 0.14);
+
+  /* Semantic */
+  --color-win-gold:         #FFD700;
+  --color-error:            #FF5252;
+  --color-warning:          #FFB300;
+  --color-info:             #40C4FF;
+
+  /* ── Spacing Tokens ──────────────────────────────────────────── */
+  --space-xs:   4px;
+  --space-sm:   8px;
+  --space-md:   12px;
+  --space-lg:   16px;
+  --space-xl:   24px;
+  --space-2xl:  32px;
+
+  /* ── Radius Tokens ───────────────────────────────────────────── */
+  --radius-sm:   6px;
+  --radius-md:   10px;
+  --radius-lg:   14px;
+  --radius-xl:   20px;
+  --radius-full: 9999px;
+}
+
+/* ── Global Resets ─────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
   margin: 0;
   padding: 0;
-  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  background: var(--color-base);
+  color: var(--color-text-primary);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
 }
 
-* {
-  box-sizing: border-box;
+/* ── Typography Helpers ────────────────────────────────────────── */
+.font-display  { font-family: 'Outfit', sans-serif; }
+.font-ui       { font-family: 'DM Sans', sans-serif; }
+.font-mono     { font-family: 'JetBrains Mono', monospace; }
+
+/* ── Scrollbar ─────────────────────────────────────────────────── */
+::-webkit-scrollbar            { width: 4px; height: 4px; }
+::-webkit-scrollbar-track      { background: transparent; }
+::-webkit-scrollbar-thumb      { background: var(--color-surface-raised); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover{ background: var(--color-accent); }
+
+/* ── Skeleton Shimmer ──────────────────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--color-surface) 25%, var(--color-surface-raised) 50%, var(--color-surface) 75%);
+  background-size: 800px 100%;
+  animation: shimmer 1.4s infinite;
 }
 
-input:focus, button:focus {
-  outline: 2px solid #0066cc;
-  outline-offset: 2px;
+/* ── Transitions ───────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
-.game-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+/* ── F12 App Layout ────────────────────────────────────────────── */
+.f12-layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  grid-template-rows: 1fr;
+  min-height: 100vh;
 }
 
-::-webkit-scrollbar {
-  width: 8px;
+@media (max-width: 1023px) {
+  .f12-layout { grid-template-columns: 64px 1fr; }
 }
 
-::-webkit-scrollbar-track {
-  background: #0d1117;
+@media (max-width: 767px) {
+  .f12-layout { grid-template-columns: 1fr; }
+  .f12-main   { margin-left: 0 !important; }
 }
 
-::-webkit-scrollbar-thumb {
-  background: #161b22;
-  border-radius: 4px;
+.f12-main {
+  margin-left: 240px; /* matches sidebar width */
+  min-height: 100vh;
+  background: var(--color-base);
+  display: flex;
+  flex-direction: column;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #21262d;
+@media (max-width: 1023px) and (min-width: 768px) {
+  .f12-main { margin-left: 64px; }
 }

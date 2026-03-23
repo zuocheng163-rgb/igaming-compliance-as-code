@@ -1,167 +1,182 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useGames, useSession, useFavourites, useRecentlyPlayed, useGameLaunch, LobbyCarousel } from '@neostrike/sdk';
 import { logSDKEvent } from '@neostrike/sdk/src/utils';
 import { GameLauncher } from './GameLauncher';
-import theme from '../../theme.config';
+import { HeroBanner } from './HeroBanner';
+import { LiveWinsTicker } from './LiveWinsTicker';
 
-// Shared per-game visual identity (Synced with Operator Portal)
+// ── F12-A Compliant Game Card ────────────────────────────────────
 const GAME_THEMES = {
-    'evolution:lightning-roulette': { emoji: '🎡', gradient: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #b8860b 100%)' },
-    'evolution:crazy-time': { emoji: '🎪', gradient: 'linear-gradient(135deg, #6a0dad 0%, #c70039 60%, #ff5733 100%)' },
-    'pragmatic:gates-of-olympus': { emoji: '🏛️', gradient: 'linear-gradient(135deg, #0f3460 0%, #533483 60%, #e94560 100%)' },
-    'pragmatic:sweet-bonanza': { emoji: '🍭', gradient: 'linear-gradient(135deg, #c0392b 0%, #e67e22 60%, #f1c40f 100%)' },
-    'pragmatic:wolf-gold': { emoji: '🐺', gradient: 'linear-gradient(135deg, #0d0d0d 0%, #1c1c3a 60%, #b8860b 100%)' },
-    'netent:starburst': { emoji: '💎', gradient: 'linear-gradient(135deg, #4a00e0 0%, #8e2de2 60%, #00c6ff 100%)' },
-    'netent:gonzos-quest': { emoji: '🌴', gradient: 'linear-gradient(135deg, #134e5e 0%, #11998e 60%, #b8860b 100%)' },
-    'netent:divine-fortune': { emoji: '🐴', gradient: 'linear-gradient(135deg, #8B0000 0%, #4b134f 60%, #b8860b 100%)' },
-    'neostrike-demo': { emoji: '🚀', gradient: 'linear-gradient(135deg, #0088ff 0%, #004488 60%, #002244 100%)' },
+    'evolution:lightning-roulette': { emoji: '🎡', gradient: 'linear-gradient(135deg, #1a1a2e, #16213e, #b8860b)' },
+    'evolution:crazy-time':         { emoji: '🎪', gradient: 'linear-gradient(135deg, #6a0dad, #c70039, #ff5733)' },
+    'pragmatic:gates-of-olympus':   { emoji: '🏛️', gradient: 'linear-gradient(135deg, #0f3460, #533483, #e94560)' },
+    'pragmatic:sweet-bonanza':      { emoji: '🍭', gradient: 'linear-gradient(135deg, #c0392b, #e67e22, #f1c40f)' },
+    'pragmatic:wolf-gold':          { emoji: '🐺', gradient: 'linear-gradient(135deg, #0d0d0d, #1c1c3a, #b8860b)' },
+    'netent:starburst':             { emoji: '💎', gradient: 'linear-gradient(135deg, #4a00e0, #8e2de2, #00c6ff)' },
+    'netent:gonzos-quest':          { emoji: '🌴', gradient: 'linear-gradient(135deg, #134e5e, #11998e, #b8860b)' },
+    'netent:divine-fortune':        { emoji: '🐴', gradient: 'linear-gradient(135deg, #8B0000, #4b134f, #b8860b)' },
+    'neostrike-demo':               { emoji: '🚀', gradient: 'linear-gradient(135deg, #003d99, #0055cc, #00E676)' },
 };
 
+const BADGE_LABELS = { 'neostrike-demo': 'NEW', 'evolution:crazy-time': 'HOT', 'pragmatic:gates-of-olympus': 'HOT' };
+const BADGE_COLORS = { NEW: '#40C4FF', HOT: '#FF5252', ALL: '#00E676' };
+
 const GameCard = ({ game, onLaunch, isFavourite, onToggleFavourite }) => {
-    const theme_ = GAME_THEMES[game.id] || { emoji: '🎮', gradient: 'linear-gradient(135deg, #1a1a2e 0%, #2d2d44 100%)' };
-    const [isHovered, setIsHovered] = useState(false);
+    const t = GAME_THEMES[game.id] || { emoji: '🎮', gradient: 'linear-gradient(135deg, var(--color-surface), var(--color-surface-raised))' };
+    const [hovered, setHovered] = useState(false);
+    const badge = BADGE_LABELS[game.id];
+    const provider = game.provider?.split(':')[0] || 'Unknown';
 
     return (
         <div
-            className="game-card"
             style={{
-                background: 'linear-gradient(145deg, #1e1e2d 0%, #161625 100%)',
-                borderRadius: '12px',
+                aspectRatio: '3/4',
+                borderRadius: 'var(--radius-lg)',
                 overflow: 'hidden',
                 cursor: 'pointer',
-                transition: 'all 0.3s ease',
-                border: '1px solid rgba(255,255,255,0.05)',
-                position: 'relative'
+                position: 'relative',
+                background: t.gradient,
+                transform: hovered ? 'scale(1.04)' : 'scale(1)',
+                transition: 'transform 200ms ease-out',
             }}
-            onMouseEnter={(e) => {
-                setIsHovered(true);
-                e.currentTarget.style.transform = 'translateY(-5px)';
-                e.currentTarget.style.borderColor = theme.colors.primary;
-                e.currentTarget.style.boxShadow = `0 10px 20px ${theme.colors.primary}22`;
-            }}
-            onMouseLeave={(e) => {
-                setIsHovered(false);
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)';
-                e.currentTarget.style.boxShadow = 'none';
-            }}
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+            onClick={() => onLaunch(game)}
         >
-            <div 
-                style={{ height: '140px', background: theme_.gradient, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '50px', position: 'relative' }}
-                onClick={() => onLaunch(game)}
-            >
-                <span>{theme_.emoji}</span>
-                {!isHovered && (
-                    <div style={{ position: 'absolute', top: '10px', right: '10px', padding: '4px 8px', borderRadius: '4px', background: 'rgba(0,0,0,0.6)', fontSize: '10px', color: '#fff', fontWeight: 'bold' }}>
-                        {game.provider.split(':')[0].toUpperCase()}
-                    </div>
-                )}
-                
-                {isHovered && (
-                    <div style={{
-                        position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.85)',
-                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                        gap: '8px', backdropFilter: 'blur(4px)', zIndex: 5
-                    }}>
-                        <div style={{ fontSize: '12px', color: '#aaa', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }}>
-                            {game.provider.split(':')[0]}
-                        </div>
-                        <div style={{ display: 'flex', gap: '20px', marginTop: '12px' }}>
-                            <div style={{ textAlign: 'center' }}>
-                                <div style={{ fontSize: '10px', color: '#888', marginBottom: '4px' }}>RTP</div>
-                                <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#00ff88' }}>{game.rtp || '96.5%'}</div>
-                            </div>
-                            <div style={{ textAlign: 'center' }}>
-                                <div style={{ fontSize: '10px', color: '#888', marginBottom: '4px' }}>MAX WIN</div>
-                                <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#ffb700' }}>{game.max_multiplier || '10,000x'}</div>
-                            </div>
-                        </div>
-                    </div>
-                )}
+            {/* Thumbnail / emoji */}
+            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 48 }}>
+                {t.emoji}
             </div>
-            
-            {/* Favourite Toggle */}
-            <button
-                onClick={(e) => { e.stopPropagation(); onToggleFavourite(game.id); }}
-                style={{
-                    position: 'absolute', top: '10px', left: '10px',
-                    background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%',
-                    width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    cursor: 'pointer', zIndex: 10, transition: 'all 0.2s', padding: 0
-                }}
-            >
-                <span style={{ fontSize: '18px', color: isFavourite(game.id) ? '#ff4d4d' : 'white' }}>
-                    {isFavourite(game.id) ? '❤️' : '🤍'}
-                </span>
+
+            {/* Green tint on hover */}
+            {hovered && <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,230,118,0.08)', transition: 'opacity 200ms' }} />}
+
+            {/* Badge (top-left) */}
+            {badge && (
+                <div style={{ position: 'absolute', top: 8, left: 8, background: BADGE_COLORS[badge] || 'var(--color-accent)', color: badge === 'NEW' ? '#000' : '#fff', borderRadius: 'var(--radius-sm)', padding: '1px 8px', fontFamily: 'Outfit', fontWeight: 700, fontSize: 11, letterSpacing: '0.5px' }}>{badge}</div>
+            )}
+
+            {/* Favourite toggle */}
+            <button onClick={e => { e.stopPropagation(); onToggleFavourite(game.id); }} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 5, fontSize: 14 }}>
+                {isFavourite(game.id) ? '❤️' : '🤍'}
             </button>
 
-            <div style={{ padding: '15px' }} onClick={() => onLaunch(game)}>
-                <div style={{ fontWeight: 'bold', color: '#fff', marginBottom: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {game.name}
-                </div>
-                <div style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    {game.category?.replace('-', ' ') || 'Classic Slot'}
-                </div>
+            {/* Provider gradient overlay at bottom */}
+            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '40%', background: 'linear-gradient(transparent, rgba(0,0,0,0.75))', pointerEvents: 'none' }} />
+            <div style={{ position: 'absolute', bottom: 8, left: 10, fontFamily: 'DM Sans', fontSize: 11, color: 'var(--color-text-secondary)' }}>{provider}</div>
+
+            {/* Hover Play Now button slides up */}
+            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', justifyContent: 'center', padding: '0 16px 16px', transform: hovered ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 180ms ease-out', pointerEvents: hovered ? 'auto' : 'none' }}>
+                <div style={{ background: 'var(--color-accent)', color: 'var(--color-base)', borderRadius: 'var(--radius-full)', padding: '6px 20px', fontFamily: 'DM Sans', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap' }}>Play Now</div>
             </div>
         </div>
     );
 };
 
-const CATEGORIES = ['All Games', 'Slots', 'Live Casino', 'Table Games'];
-const MECHANICS = ['Megaways', 'Bonus Buy', 'Drops & Wins'];
+// ── F12-D Filter Bar ────────────────────────────────────────────
+const CATEGORIES = ['All Games', 'Slots', 'Live Casino', 'Table Games', 'New Arrivals', 'Bonus Buy'];
+const PROVIDERS = ['All Providers', 'Pragmatic Play', 'NetEnt', 'Evolution', "Play'n GO", 'NeoStrike'];
+const SORT_OPTIONS = ['Rating', 'New', 'A–Z', 'RTP'];
 
-const CategoryNav = ({ activeCategory, onSelectCategory, activeMechanic, onSelectMechanic }) => (
-    <div style={{ marginBottom: '32px' }}>
-        <div style={{ display: 'flex', gap: '12px', overflowX: 'auto', paddingBottom: '12px', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-            {CATEGORIES.map(cat => {
-                const navKey = cat === 'All Games' ? 'all' : cat.toLowerCase().replace(' ', '-');
-                const isActive = activeCategory === navKey || (!activeCategory && navKey === 'all');
-                
-                return (
-                    <button 
-                        key={cat}
-                        onClick={() => onSelectCategory(navKey)}
-                        style={{
-                            padding: '10px 24px', borderRadius: '24px', border: 'none', cursor: 'pointer',
-                            whiteSpace: 'nowrap', fontWeight: 'bold', fontSize: '14px',
-                            background: isActive ? theme.colors.primary : 'rgba(255,255,255,0.05)',
-                            color: '#fff', transition: 'all 0.2s'
-                        }}
-                    >
-                        {cat}
-                    </button>
-                );
-            })}
-        </div>
-        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-            {MECHANICS.map(mech => (
-                <button
-                    key={mech}
-                    onClick={() => onSelectMechanic(activeMechanic === mech ? null : mech)}
-                    style={{
-                        padding: '8px 20px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer',
-                        whiteSpace: 'nowrap', fontSize: '13px', fontWeight: '500',
-                        background: activeMechanic === mech ? 'rgba(255,255,255,0.15)' : 'transparent',
-                        color: activeMechanic === mech ? '#fff' : '#aaa', transition: 'all 0.2s'
-                    }}
-                >
-                    {mech}
+const FilterBar = ({ onSearch, activeCategory, onCategoryChange, activeProvider, onProviderChange, sortBy, onSortChange, bonusBuy, onBonusBuyToggle }) => {
+    const [searchVal, setSearchVal] = useState('');
+    const debounceRef = React.useRef(null);
+
+    const handleSearch = (v) => {
+        setSearchVal(v);
+        clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => onSearch(v), 300);
+    };
+
+    const selectStyle = {
+        background: 'var(--color-surface-raised)',
+        border: '1px solid var(--color-border-strong)',
+        borderRadius: 'var(--radius-md)',
+        color: 'var(--color-text-primary)',
+        padding: '0 var(--space-md)',
+        height: 36,
+        fontFamily: 'DM Sans, sans-serif',
+        fontSize: 13,
+        cursor: 'pointer',
+        outline: 'none',
+    };
+
+    return (
+        <div style={{ marginBottom: 'var(--space-xl)' }}>
+            {/* Category chips */}
+            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 8, marginBottom: 12, scrollbarWidth: 'none' }}>
+                {CATEGORIES.map(cat => {
+                    const key = cat === 'All Games' ? 'all' : cat.toLowerCase().replace(/[\s']/g, '-');
+                    const active = activeCategory === key || (!activeCategory && key === 'all');
+                    return (
+                        <button key={cat} onClick={() => onCategoryChange(key)} style={{
+                            whiteSpace: 'nowrap', padding: '8px 20px', borderRadius: 'var(--radius-full)',
+                            border: 'none', cursor: 'pointer', fontFamily: 'DM Sans', fontWeight: 500, fontSize: 13,
+                            background: active ? 'var(--color-accent)' : 'var(--color-surface-raised)',
+                            color: active ? 'var(--color-base)' : 'var(--color-text-secondary)',
+                            transition: 'background 150ms ease-out, color 150ms ease-out',
+                        }}>{cat}</button>
+                    );
+                })}
+            </div>
+
+            {/* Search + dropdowns row */}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                {/* Search */}
+                <div style={{ position: 'relative', flex: '1 1 200px', minWidth: 160 }}>
+                    <input
+                        value={searchVal}
+                        onChange={e => handleSearch(e.target.value)}
+                        placeholder="Search games…"
+                        style={{ ...selectStyle, width: '100%', paddingLeft: 36, background: 'var(--color-surface-overlay)' }}
+                    />
+                    <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-secondary)', fontSize: 14 }}>🔍</span>
+                    {searchVal && (
+                        <button onClick={() => handleSearch('')} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', fontSize: 14 }}>✕</button>
+                    )}
+                </div>
+
+                {/* Provider dropdown */}
+                <select value={activeProvider} onChange={e => onProviderChange(e.target.value)} style={selectStyle}>
+                    {PROVIDERS.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+
+                {/* Sort by */}
+                <select value={sortBy} onChange={e => onSortChange(e.target.value)} style={selectStyle}>
+                    {SORT_OPTIONS.map(s => <option key={s} value={s}>Sort: {s}</option>)}
+                </select>
+
+                {/* Bonus Buy toggle */}
+                <button onClick={onBonusBuyToggle} style={{
+                    height: 36, padding: '0 16px', borderRadius: 'var(--radius-md)',
+                    border: `1px solid ${bonusBuy ? 'var(--color-accent)' : 'var(--color-border-strong)'}`,
+                    background: bonusBuy ? 'var(--color-accent-glow)' : 'var(--color-surface-raised)',
+                    color: bonusBuy ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+                    fontFamily: 'DM Sans', fontSize: 13, cursor: 'pointer',
+                    transition: 'all 150ms ease-out',
+                }}>
+                    ⚡ Bonus Buy
                 </button>
-            ))}
+            </div>
         </div>
-    </div>
-);
+    );
+};
 
 export const GameLobby = () => {
-    const { player, isAuthenticated } = useSession();
-    const { games, loading, error, search, filter, loadMore, total, filters } = useGames();
+    const { isAuthenticated } = useSession();
+    const { games, loading, error, search, filter, loadMore, total } = useGames();
     const { favourites, isFavourite, toggleFavourite } = useFavourites();
     const { games: recentlyPlayed } = useRecentlyPlayed();
     const [selectedGame, setSelectedGame] = useState(null);
-    const [activeMechanic, setActiveMechanic] = useState(null);
+
+    // F12-D filter state
+    const [activeCategory, setActiveCategory] = useState('all');
+    const [activeProvider, setActiveProvider] = useState('All Providers');
+    const [sortBy, setSortBy] = useState('Rating');
+    const [bonusBuy, setBonusBuy] = useState(false);
 
     const mode = isAuthenticated ? 'real' : 'demo';
-    const { launchUrl, isLoading: isLaunching, error: launchError } = useGameLaunch(selectedGame?.id, { mode });
+    const { launchUrl, error: launchError } = useGameLaunch(selectedGame?.id, { mode });
 
     useEffect(() => {
         if (launchError && launchError === 'DEMO_NOT_SUPPORTED') {
@@ -171,14 +186,11 @@ export const GameLobby = () => {
         }
     }, [launchUrl, launchError]);
 
-    const handleCategorySelect = (cat) => {
-        filter({ category: cat });
-    };
+    const handleSearch = useCallback((query) => search(query), [search]);
 
-    const handleMechanicSelect = (mech) => {
-        setActiveMechanic(mech);
-        if (mech) filter({ tags: mech });
-        else filter({ tags: null });
+    const handleCategoryChange = (cat) => {
+        setActiveCategory(cat);
+        filter({ category: cat === 'all' ? null : cat });
     };
 
     const handleLaunch = (game) => {
@@ -187,89 +199,95 @@ export const GameLobby = () => {
     };
 
     return (
-        <div className="game-lobby" style={{ padding: '0 40px 40px' }}>
-            {/* Category and Mechanic Navigation */}
-            <CategoryNav 
-                activeCategory={filters.category}
-                onSelectCategory={handleCategorySelect}
-                activeMechanic={activeMechanic}
-                onSelectMechanic={handleMechanicSelect}
+        <div style={{ padding: '0 var(--space-xl) var(--space-2xl)' }}>
+
+            {/* F12-E Hero Banner */}
+            <HeroBanner />
+
+            {/* F12-C Live Wins Ticker */}
+            <LiveWinsTicker />
+
+            {/* F12-D Filter Bar */}
+            <FilterBar
+                onSearch={handleSearch}
+                activeCategory={activeCategory}
+                onCategoryChange={handleCategoryChange}
+                activeProvider={activeProvider}
+                onProviderChange={setActiveProvider}
+                sortBy={sortBy}
+                onSortChange={setSortBy}
+                bonusBuy={bonusBuy}
+                onBonusBuyToggle={() => setBonusBuy(b => !b)}
             />
 
             {/* SDK Carousels */}
             {recentlyPlayed.length > 0 && (
                 <LobbyCarousel title="Continue Playing" games={recentlyPlayed} onLaunch={handleLaunch} />
             )}
-            
+
             {favourites.length > 0 && (
                 <LobbyCarousel title="Your Favourites" games={favourites} onLaunch={handleLaunch} />
             )}
 
             {/* Results Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '40px 0 20px' }}>
-                <h2 style={{ margin: 0, fontSize: '20px' }}>Game Catalog</h2>
-                <span style={{ color: '#666', fontSize: '14px' }}>Showing {games.length} of {total} games</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: 'var(--space-2xl) 0 var(--space-lg)' }}>
+                <h2 style={{ margin: 0, fontFamily: 'Outfit, sans-serif', fontWeight: 600, fontSize: 22, color: 'var(--color-text-primary)' }}>All Games</h2>
+                <span style={{ color: 'var(--color-text-muted)', fontSize: 13, fontFamily: 'DM Sans' }}>Showing {games.length} of {total}</span>
             </div>
 
             {/* Error State */}
             {error && (
-                <div style={{
-                    padding: '20px', background: '#ff444422', border: '1px solid #ff4444',
-                    borderRadius: '8px', color: '#ff4444', marginBottom: '20px'
-                }}>
+                <div style={{ padding: 'var(--space-lg)', background: 'rgba(255,82,82,0.08)', border: '1px solid rgba(255,82,82,0.4)', borderRadius: 'var(--radius-md)', color: 'var(--color-error)', marginBottom: 'var(--space-xl)' }}>
                     <strong>Load Error:</strong> {error}
                 </div>
             )}
 
-            {/* Games Grid */}
+            {/* F12-A Games Grid */}
             <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-                gap: '24px'
+                gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+                gap: 'var(--space-md)',
             }}>
-                {games.map(game => (
-                    <GameCard 
-                        key={game.id} 
-                        game={game} 
-                        onLaunch={handleLaunch}
-                        isFavourite={isFavourite}
-                        onToggleFavourite={toggleFavourite}
-                    />
-                ))}
-            </div>
-
-            {/* Loading / Infinite Scroll */}
-            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '40px' }}>
                 {loading ? (
-                    <div className="spinner" style={{ color: theme.colors.primary }}>Loading...</div>
-                ) : games.length < total && (
-                    <button
-                        onClick={loadMore}
-                        style={{
-                            padding: '12px 40px', borderRadius: '8px',
-                            background: 'transparent', color: theme.colors.primary,
-                            border: `2px solid ${theme.colors.primary}`,
-                            cursor: 'pointer', fontWeight: 'bold', transition: 'all 0.2s'
-                        }}
-                        onMouseEnter={(e) => {
-                            e.target.style.background = theme.colors.primary;
-                            e.target.style.color = '#fff';
-                        }}
-                        onMouseLeave={(e) => {
-                            e.target.style.background = 'transparent';
-                            e.target.style.color = theme.colors.primary;
-                        }}
-                    >
-                        Load More Games
-                    </button>
+                    Array(12).fill(0).map((_, i) => (
+                        <div key={i} className="skeleton" style={{ aspectRatio: '3/4', borderRadius: 'var(--radius-lg)' }} />
+                    ))
+                ) : (
+                    games.map(game => (
+                        <GameCard
+                            key={game.id}
+                            game={game}
+                            onLaunch={handleLaunch}
+                            isFavourite={isFavourite}
+                            onToggleFavourite={toggleFavourite}
+                        />
+                    ))
                 )}
             </div>
 
-            {/* Launch Overlay */}
+            {/* Load More */}
+            {!loading && games.length < total && (
+                <div style={{ display: 'flex', justifyContent: 'center', marginTop: 'var(--space-2xl)' }}>
+                    <button onClick={loadMore} style={{
+                        padding: '12px 40px', borderRadius: 'var(--radius-full)',
+                        background: 'transparent', color: 'var(--color-accent)',
+                        border: '2px solid var(--color-accent)',
+                        cursor: 'pointer', fontFamily: 'DM Sans', fontWeight: 600, fontSize: 14,
+                        transition: 'background 150ms ease-out',
+                    }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-accent-glow)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                    >
+                        Load More Games
+                    </button>
+                </div>
+            )}
+
+            {/* Game Launch Overlay */}
             {selectedGame && (
                 <GameLauncher
                     game={selectedGame}
-                    launchUrl={(launchError === 'DEMO_NOT_SUPPORTED') ? null : launchUrl} /* Fallback to mock game */
+                    launchUrl={(launchError === 'DEMO_NOT_SUPPORTED') ? null : launchUrl}
                     currentMode={mode}
                     onClose={() => setSelectedGame(null)}
                 />
@@ -277,4 +295,3 @@ export const GameLobby = () => {
         </div>
     );
 };
-
