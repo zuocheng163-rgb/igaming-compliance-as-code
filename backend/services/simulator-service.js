@@ -1,6 +1,7 @@
 const InterventionService = require('./intervention');
 const ftService = require('./ft-integration');
-const { client: supabase } = require('./supabase');
+const supabaseService = require('./supabase');
+const { client: supabase } = supabaseService;
 const { generateCorrelationId, logger, auditLog } = require('./logger');
 
 // In-memory store for sandbox activity (Velocity Spike tracking)

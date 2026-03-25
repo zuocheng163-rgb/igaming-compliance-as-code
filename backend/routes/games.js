@@ -35,7 +35,8 @@ router.get('/catalog', async (req, res) => {
 router.post('/:id/launch', async (req, res) => {
     try {
         const gameId = req.params.id;
-        const { player_id, mode } = req.body;
+        const { mode } = req.body;
+        const player_id = req.body.player_id || req.user?.id || req.user?.username;
         const brandId = req.headers['x-brand-id'] || '1';
 
         if (!player_id) {
