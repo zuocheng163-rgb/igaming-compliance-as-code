@@ -658,6 +658,7 @@ class WalletService {
             // FT Integration: Push bonus event
             await ftService.pushEvent(user.user_id, 'bonus', {
                 bonus_code: bonusCode,
+                user_bonus_id: newBonusInst?.id,
                 amount: parseFloat(amount) || 0,
                 status: 'Completed',
                 transaction_id: transactionId,

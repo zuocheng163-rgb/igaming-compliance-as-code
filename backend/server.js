@@ -7,6 +7,15 @@ const cors = require('cors');
 
 const { logger, setDbLogHook } = require('./services/logger');
 const supabaseService = require('./services/supabase');
+
+// Track and trace deprecation warnings to find the source of url.parse()
+process.on('warning', (warning) => {
+  if (warning.name === 'DeprecationWarning') {
+    console.error(`[DeprecationWarning] ${warning.message}`);
+    console.error(warning.stack);
+  }
+});
+
 const operatorRoutes = require('./routes/operator');
 const providerRoutes = require('./routes/providers');
 // const { initSocket } = require('./services/socket');

@@ -21,6 +21,7 @@ const EVENT_CONFIG = {
 
     // Aliases for internal events
     'deposit': { path: '/v1/integration/payment', method: 'POST' },
+    'withdrawal': { path: '/v1/integration/payment', method: 'POST' },
     'bet': { path: '/v1/integration/casino', method: 'POST' },
     'win': { path: '/v1/integration/casino', method: 'POST' },
     'block': { path: '/v2/integration/user/blocks', method: 'PUT' },
@@ -35,6 +36,7 @@ const FT_MESSAGE_TYPES = {
     'win': 'CASINO',
     'payment': 'PAYMENT',
     'deposit': 'PAYMENT',
+    'withdrawal': 'PAYMENT',
     'user_update': 'USER_UPDATE_V2',
     'blocks': 'USER_BLOCK_V2',
     'block': 'USER_BLOCK_V2',
