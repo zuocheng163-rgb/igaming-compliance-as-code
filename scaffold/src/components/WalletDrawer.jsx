@@ -12,22 +12,13 @@ export const WalletDrawer = ({ isOpen, onClose, player }) => {
     const [isCashierOpen, setCashierOpen] = useState(false);
     const [isAccountOpen, setAccountOpen] = useState(false);
 
-    const recentTransactions = (transactions || []).slice(0, 5);
+    const safeBalance = balance || 0;
+    const safeBonus = bonusBalance || 0;
+    const safeCurrency = currency || 'EUR';
 
     if (!isOpen) return null;
 
-    const handleQuickDeposit = async (amt) => {
-        setStep('PROCESSING');
-        try {
-            logSDKEvent('UI', `Confirming deposit of ${amt} ${currency}`);
-            await deposit(parseFloat(amt));
-            refresh();
-            setStep('SUCCESS');
-        } catch (err) {
-            setStep('MAIN');
-            logSDKEvent('ERROR', 'Deposit process aborted');
-        }
-    };
+    const recentTransactions = (transactions || []).slice(0, 5);
 
     const StatusBadge = ({ type, text }) => (
         <span style={{
@@ -73,15 +64,15 @@ export const WalletDrawer = ({ isOpen, onClose, player }) => {
                     }}>
                         <div style={{ fontSize: '12px', color: '#888', marginBottom: '8px' }}>Total Balance</div>
                         <div style={{ fontSize: '32px', fontWeight: 'bold', color: theme.colors.primary }}>
-                            {currency} {(balance + bonusBalance).toFixed(2)}
+                            {safeCurrency} {(safeBalance + safeBonus).toFixed(2)}
                         </div>
                         <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
                             <span style={{ color: '#aaa' }}>Real Cash:</span>
-                            <span style={{ fontWeight: 'bold' }}>{currency} {balance.toFixed(2)}</span>
+                            <span style={{ fontWeight: 'bold' }}>{safeCurrency} {safeBalance.toFixed(2)}</span>
                         </div>
                         <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
                             <span style={{ color: '#aaa' }}>Bonus:</span>
-                            <span style={{ fontWeight: 'bold', color: theme.colors.secondary }}>{currency} {bonusBalance.toFixed(2)}</span>
+                            <span style={{ fontWeight: 'bold', color: theme.colors.secondary }}>{safeCurrency} {safeBonus.toFixed(2)}</span>
                         </div>
                     </div>
 

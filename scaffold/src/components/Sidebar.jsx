@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useSession, useFavourites } from '@neostrike/sdk';
+import { useSession, useFavourites, useBalance } from '@neostrike/sdk';
 
 // ── Icons (inline SVGs) ───────────────────────────────────────────
 const Icon = ({ path, size = 18 }) => (
@@ -106,8 +106,62 @@ const Divider = () => (
     <div style={{ height: 1, background: 'var(--color-border)', margin: '8px 0' }} />
 );
 
+// ── Auth Section ──────────────────────────────────────────────────
+const AuthSection = ({ isCollapsed, isAuthenticated, player, onLogin, onLogout, onOpenWallet, onNavigate }) => {
+    const { getToken } = useSession();
+    const { balance, bonusBalance, currency } = useBalance(player?.user_id, { token: getToken() });
+    
+    if (isAuthenticated && player) {
+        return (
+            <div style={{ padding: isCollapsed ? '12px 0' : '16px 20px', borderBottom: '1px solid var(--color-border)', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '12px', alignItems: isCollapsed ? 'center' : 'stretch' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', justifyContent: isCollapsed ? 'center' : 'flex-start' }}>
+                    <div onClick={onOpenWallet} style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--color-surface-raised)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--color-text-primary)', fontWeight: 'bold', fontSize: 16, flexShrink: 0 }} title="Open Dashboard">
+                        {player.username?.slice(0, 2).toUpperCase() || '?'}
+                    </div>
+                    {!isCollapsed && (
+                        <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                            <span style={{ fontSize: '14px', fontWeight: 'bold', color: 'var(--color-text-primary)', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{player.username}</span>
+                            <span style={{ fontSize: '13px', color: 'var(--color-accent)', fontWeight: 'bold' }}>{currency || 'EUR'} {((balance || 0) + (bonusBalance || 0)).toFixed(2)}</span>
+                        </div>
+                    )}
+                </div>
+                {!isCollapsed && (
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        <button onClick={onOpenWallet} style={{ flex: 1, padding: '8px 0', background: 'var(--color-accent)', color: '#000', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: 13 }}>
+                            + Deposit
+                        </button>
+                        <button onClick={onLogout} style={{ padding: '8px', background: 'var(--color-surface-overlay)', border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Logout">
+                            <Icon path="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" size={16} />
+                        </button>
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    if (isCollapsed) {
+        return (
+            <div style={{ padding: '16px 0', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'center' }}>
+                <div style={{ padding: '8px', background: 'var(--color-accent)', color: '#000', borderRadius: '50%', cursor: 'pointer', display: 'flex', justifyContent: 'center' }} title="Login">
+                    <Icon path="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4 M10 17l5-5-5-5 M15 12H3" size={16} />
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
+            <form onSubmit={onLogin} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <input name="username" placeholder="Username" defaultValue="test01" style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-surface-overlay)', color: 'var(--color-text-primary)', width: '100%', outline: 'none', fontSize: 13 }} />
+                <input name="token" placeholder="Token" defaultValue="token-test01" style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-surface-overlay)', color: 'var(--color-text-primary)', width: '100%', outline: 'none', fontSize: 13 }} />
+                <button type="submit" style={{ padding: '10px', background: 'var(--color-accent)', color: '#000', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: 14 }}>Login</button>
+            </form>
+        </div>
+    );
+};
+
 // ── Main Sidebar ──────────────────────────────────────────────────
-export const Sidebar = ({ activePage = 'home', onNavigate, isOpen, onClose }) => {
+export const Sidebar = ({ activePage = 'home', onNavigate, isOpen, onClose, isAuthenticated, player, onLogin, onLogout, onOpenWallet }) => {
     const [collapsed, setCollapsed] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
     const [isTablet, setIsTablet] = useState(false);
@@ -155,6 +209,16 @@ export const Sidebar = ({ activePage = 'home', onNavigate, isOpen, onClose }) =>
                         <span onClick={() => nav('home')} style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: 22, color: 'var(--color-text-primary)', cursor: 'pointer' }}>NeoStrike</span>
                     )}
                 </div>
+
+                <AuthSection 
+                    isCollapsed={isCollapsed}
+                    isAuthenticated={isAuthenticated}
+                    player={player}
+                    onLogin={onLogin}
+                    onLogout={onLogout}
+                    onOpenWallet={onOpenWallet}
+                    onNavigate={nav}
+                />
 
                 {/* Spin & Win */}
                 <div style={{ paddingTop: 12, flexShrink: 0 }}>

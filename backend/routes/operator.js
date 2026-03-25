@@ -92,6 +92,20 @@ router.post('/authenticate', async (req, res) => {
             user_agent: req.headers['user-agent']
         }, { correlationId, brandId });
 
+        await auditLog({
+            correlationId,
+            brandId,
+            actor_id: user.user_id,
+            action: 'user:login',
+            entity_type: 'player',
+            entity_id: user.id,
+            metadata: {
+                sessionId,
+                ip: req.ip,
+                userAgent: req.headers['user-agent']
+            }
+        });
+
         await ftService.pushEvent(user.user_id, 'balance', {
             amount: user.balance,
             bonus_amount: user.bonus_balance || 0,
@@ -441,8 +455,19 @@ router.post('/registration', authenticateRequest, async (req, res) => {
 
 router.post('/logout', authenticateRequest, async (req, res) => {
     const { correlationId, user } = req;
+    const brandId = user.brand_id || 1;
     try {
-        // FT logout event is not required/supported by current integration version
+        // Logout events are NOT sent to RabbitMQ — audit log only
+        await auditLog({
+            correlationId,
+            brandId,
+            actor_id: user.user_id,
+            action: 'user:logout',
+            entity_type: 'player',
+            entity_id: user.id,
+            message: `User ${user.user_id} logged out`
+        });
+
         logger.info(`User ${user.id} logged out successfully`, { correlationId });
         res.json({ success: true });
     } catch (error) {

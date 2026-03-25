@@ -8,7 +8,8 @@ class NeoStrikeClient {
         this.username = config.username;
         const headers = {
             'Content-Type': 'application/json',
-            'x-brand-id': this.brandId
+            'x-brand-id': this.brandId,
+            'x-sandbox-mode': 'true'
         };
 
         if (this.token) {

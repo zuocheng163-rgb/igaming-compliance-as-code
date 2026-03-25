@@ -9,11 +9,9 @@ import { AlertModal } from './components/AlertModal';
 import { SDKConsole } from './components/SDKConsole';
 import { OfflineState, InstallPrompt } from '@neostrike/sdk';
 
-function AppInner() {
+function AppInner({ onLoginSuccess, onLogoutSuccess }) {
     const { player, login, isAuthenticated, logout } = useSession();
     const [isWalletOpen, setWalletOpen] = useState(false);
-    const [token, setToken] = useState(localStorage.getItem('ns_session_token') || '');
-    const [username, setUsername] = useState(localStorage.getItem('ns_username') || '');
     const [activePage, setActivePage] = useState('home');
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -30,10 +28,9 @@ function AppInner() {
         const t = e.target.token.value;
         try {
             await login(u, t);
-            setToken(t);
-            setUsername(u);
             localStorage.setItem('ns_session_token', t);
             localStorage.setItem('ns_username', u);
+            if (onLoginSuccess) onLoginSuccess(u, t);
         } catch (err) {
             console.error('Login failed', err);
         }
@@ -41,10 +38,9 @@ function AppInner() {
 
     const handleLogout = () => {
         logout();
-        setToken('');
-        setUsername('');
         localStorage.removeItem('ns_session_token');
         localStorage.removeItem('ns_username');
+        if (onLogoutSuccess) onLogoutSuccess();
     };
 
     return (
@@ -58,6 +54,11 @@ function AppInner() {
                 onNavigate={setActivePage}
                 isOpen={sidebarOpen}
                 onClose={() => setSidebarOpen(false)}
+                isAuthenticated={isAuthenticated}
+                player={player}
+                onLogin={handleLogin}
+                onLogout={handleLogout}
+                onOpenWallet={() => setWalletOpen(true)}
             />
 
             {/* Main Content Area */}
@@ -69,11 +70,13 @@ function AppInner() {
                     onLogout={handleLogout}
                     isMobile={isMobile}
                     onHamburger={() => setSidebarOpen(true)}
+                    player={player}
+                    isAuthenticated={isAuthenticated}
                 />
 
                 {/* Page Content */}
                 <main style={{ flex: 1, padding: 'var(--space-xl)' }}>
-                    <GameLobby />
+                    <GameLobby activePage={activePage} onNavigate={setActivePage} />
                 </main>
             </div>
 
@@ -86,11 +89,11 @@ function AppInner() {
 }
 
 function App() {
-    const [token] = useState(localStorage.getItem('ns_session_token') || '');
-    const [username] = useState(localStorage.getItem('ns_username') || '');
+    const [token, setToken] = useState(localStorage.getItem('ns_session_token') || '');
+    const [username, setUsername] = useState(localStorage.getItem('ns_username') || '');
 
     const config = useMemo(() => ({
-        apiUrl: 'https://igaming-product.vercel.app',
+        apiUrl: import.meta.env.VITE_NEOSTRIKE_API_URL,
         token,
         username,
         brandId: '1'
@@ -98,7 +101,10 @@ function App() {
 
     return (
         <NeoStrikeProvider config={config}>
-            <AppInner />
+            <AppInner 
+                onLoginSuccess={(u, t) => { setUsername(u); setToken(t); }} 
+                onLogoutSuccess={() => { setUsername(''); setToken(''); }} 
+            />
         </NeoStrikeProvider>
     );
 }

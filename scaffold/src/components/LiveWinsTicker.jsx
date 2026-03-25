@@ -53,7 +53,7 @@ export const LiveWinsTicker = () => {
     const fetchWins = async () => {
         const periodMap = { D: 'daily', W: 'weekly', M: 'monthly' };
         try {
-            const res = await fetch(`https://igaming-product.vercel.app/api/live-wins?period=${periodMap[period]}&limit=30`);
+            const res = await fetch(`${import.meta.env.VITE_NEOSTRIKE_API_URL}/api/live-wins?period=${periodMap[period]}&limit=30`);
             if (res.ok) {
                 const data = await res.json();
                 setWins(data.wins || MOCK_WINS);

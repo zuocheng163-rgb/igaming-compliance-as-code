@@ -1,7 +1,7 @@
 const InterventionService = require('./intervention');
 const ftService = require('./ft-integration');
 const { client: supabase } = require('./supabase');
-const { generateCorrelationId, logger } = require('./logger');
+const { generateCorrelationId, logger, auditLog } = require('./logger');
 
 // In-memory store for sandbox activity (Velocity Spike tracking)
 const sandboxLogs = [];
@@ -139,6 +139,33 @@ class SimulatorService {
         const correlationId = generateCorrelationId();
         const brandId = 1; // Default for demo
 
+        // Try to identify user Early from Token because Sandbox runs before Auth
+        if (!req.user) {
+            const supabaseService = require('./supabase');
+            const username = req.headers['x-username'];
+            let token = req.headers['authorization'] || '';
+
+            while (token.toLowerCase().startsWith('bearer ')) {
+                token = token.substring(7).trim();
+            }
+
+            try {
+                let user = null;
+                if (token) {
+                    user = await supabaseService.getUser(username || null, token);
+                }
+                
+                // Sandbox JIT fallback: if token fails or isn't a real DB token, lookup by username
+                if (!user && username) {
+                    user = await supabaseService.getUserById(username);
+                }
+                
+                if (user) req.user = user;
+            } catch (e) {
+                logger.warn('[Simulator] Early auth extraction failed', { error: e.message });
+            }
+        }
+
         // Helper to get/init balance (fetch from DB if not in memory)
         const getBalance = async (uid) => {
             // ALWAYS try to fetch from database first to ensure we aren't using stale in-memory data
@@ -264,40 +291,76 @@ class SimulatorService {
         // 7. Mock Debit (Slot Play): (POST) /api/debit
         if (method === 'POST' && (path.endsWith('/debit') || path.includes('/debit'))) {
             const { user_id, amount } = req.body;
-            logger.info(`[Simulator] Match: POST Debit for ${user_id}`);
+            const uid = user_id || req.user?.id || req.user?.username || 'demo_user';
+            logger.info(`[Simulator] Match: POST Debit for ${uid}`);
 
-            const bal = await getBalance(user_id);
-            const balanceBefore = bal.amount;
-            bal.amount -= amount;
+            const bal = await getBalance(uid);
+            if ((bal.amount + bal.bonus) < amount) {
+                return res.status(400).json({ error: 'INSUFFICIENT_FUNDS' });
+            }
+
+            const bonusBefore = bal.bonus;
+            const realBefore = bal.amount;
+
+            // Bonus-first wagering: consume bonus before real money
+            let remaining = amount;
+            if (bal.bonus >= remaining) {
+                bal.bonus -= remaining;
+                remaining = 0;
+            } else {
+                remaining -= bal.bonus;
+                bal.bonus = 0;
+                bal.amount -= remaining;
+                remaining = 0;
+            }
 
             // Track for Velocity Spike
-            sandboxLogs.push({ user_id, action: 'debit', timestamp: Date.now() });
+            sandboxLogs.push({ user_id: uid, action: 'debit', timestamp: Date.now() });
             const lastMinute = Date.now() - 60000;
-            const recentBets = sandboxLogs.filter(l => l.user_id === user_id && l.action === 'debit' && l.timestamp > lastMinute);
+            const recentBets = sandboxLogs.filter(l => l.user_id === uid && l.action === 'debit' && l.timestamp > lastMinute);
 
             if (recentBets.length >= 5) {
-                logger.warn(`[Simulator] Velocity Spike Detected for ${user_id}`);
-                InterventionService.handleRiskDetected(user_id, {
+                logger.warn(`[Simulator] Velocity Spike Detected for ${uid}`);
+                InterventionService.handleRiskDetected(uid, {
                     riskLevel: 'MEDIUM',
                     reasons: ['isVelocitySpike']
                 });
             }
 
-            // Push to FT (Awaited for stability)
+            // Push to Audit Log for Operator Visibility
+            await auditLog({
+                correlationId,
+                brandId,
+                actor_id: uid,
+                action: 'wallet:debit',
+                entity_type: 'player',
+                entity_id: bal.dbId,
+                message: `Simulator Bet: ${amount} EUR on ${req.body.game_id || 'neostrike-demo'} (bonus: ${bonusBefore - bal.bonus} EUR, real: ${realBefore - bal.amount} EUR)`,
+                metadata: {
+                    request: req.body,
+                    balance_before: realBefore,
+                    balance_after: bal.amount,
+                    bonus_before: bonusBefore,
+                    bonus_after: bal.bonus,
+                    source: 'simulator'
+                }
+            }).catch(e => logger.error('[Simulator] Audit Log: Debit Failed', e));
+
+            // Persist to Transactions table
             await supabaseService.createTransaction({
-                transaction_id: `bet-${Date.now()}`,
+                transaction_id: req.body.transaction_id || `bet-${Date.now()}`,
                 brand_id: brandId,
-                user_id: bal.dbId, // Use the actual UUID from the database
+                user_id: bal.dbId,
                 type: 'Bet',
-                balance_before: balanceBefore,
+                balance_before: realBefore,
                 balance_after: bal.amount,
-                bonus_balance_before: bal.bonus,
+                bonus_balance_before: bonusBefore,
                 bonus_balance_after: bal.bonus,
-                game_id: 'slot-game-1',
+                game_id: req.body.game_id || 'neostrike-demo',
                 currency: 'EUR'
             }).catch(e => logger.error('[Simulator] FT Casino Push Failed', e));
 
-            await ftService.pushEvent(user_id, 'balance', {
+            await ftService.pushEvent(uid, 'balance', {
                 amount: bal.amount,
                 bonus_amount: bal.bonus,
                 currency: 'EUR'
@@ -332,6 +395,23 @@ class SimulatorService {
             const bal = await getBalance(uid);
             await new Promise(r => setTimeout(r, 50)); // Small delay for replication lag if any
             bal.bonus += bonusAmount;
+
+            // Push to Audit Log for Operator Visibility
+            await auditLog({
+                correlationId,
+                brandId,
+                actor_id: uid,
+                action: 'wallet:bonus_credit',
+                entity_type: 'player',
+                entity_id: bal.dbId,
+                message: `Simulator Bonus: ${bonusAmount} EUR (${bcode})`,
+                metadata: {
+                    request: req.body,
+                    bonus_before: bal.bonus - bonusAmount,
+                    bonus_after: bal.bonus,
+                    source: 'simulator'
+                }
+            }).catch(e => logger.error('[Simulator] Audit Log: Bonus Failed', e));
 
             // Push FT Bonus Event
             await ftService.pushEvent(user_id, 'bonus', {
@@ -384,27 +464,45 @@ class SimulatorService {
         // 9. Mock Credit (Slot Win): (POST) /api/credit
         if (method === 'POST' && path.endsWith('/credit')) {
             const { user_id, amount } = req.body;
+            const uid = user_id || req.user?.id || req.user?.username || 'demo_user';
             logger.info(`[Simulator] Match: POST Credit`);
 
-            const bal = await getBalance(user_id);
+            const bal = await getBalance(uid);
             const balanceBefore = bal.amount;
             bal.amount += amount;
 
+            // Push to Audit Log for Operator Visibility
+            await auditLog({
+                correlationId,
+                brandId,
+                actor_id: uid,
+                action: 'wallet:credit',
+                entity_type: 'player',
+                entity_id: bal.dbId,
+                message: `Simulator Win: ${amount} EUR on ${req.body.game_id || 'neostrike-demo'}`,
+                metadata: {
+                    request: req.body,
+                    balance_before: balanceBefore,
+                    balance_after: bal.amount,
+                    source: 'simulator'
+                }
+            }).catch(e => logger.error('[Simulator] Audit Log: Credit Failed', e));
+
             // Push to FT (Awaited for stability)
             await supabaseService.createTransaction({
-                transaction_id: `bon-${Date.now()}`,
-                brand_id: brandId,
+                transaction_id: req.body.transaction_id || `win-${Date.now()}`,
+                brandId: brandId,
                 user_id: bal.dbId, // Use the actual UUID from the database
                 type: 'Win',
                 balance_before: balanceBefore,
                 balance_after: bal.amount,
                 bonus_balance_before: bal.bonus,
                 bonus_balance_after: bal.bonus,
-                game_id: 'slot-game-1',
+                game_id: req.body.game_id || 'neostrike-demo',
                 currency: 'EUR'
-            }, { correlationId, brandId }).catch(e => logger.error('[Simulator] FT Win Push Failed', e));
+            }).catch(e => logger.error('[Simulator] FT Win Push Failed', e));
 
-            await ftService.pushEvent(user_id, 'balance', {
+            await ftService.pushEvent(uid, 'balance', {
                 amount: bal.amount,
                 bonus_amount: bal.bonus,
                 currency: 'EUR'
@@ -430,16 +528,34 @@ class SimulatorService {
         // 9. Mock Deposit: (POST) /api/deposit
         if (method === 'POST' && (path.endsWith('/deposit') || path.includes('/deposit')) && !path.includes('/v1/demo/')) {
             const { user_id, amount } = req.body;
+            const uid = user_id || req.user?.id || req.user?.username || 'demo_user';
             const depositAmount = parseFloat(amount || 100);
-            logger.info(`[Simulator] Match: POST Deposit for ${user_id}, amount: ${depositAmount}`);
+            logger.info(`[Simulator] Match: POST Deposit for ${uid}, amount: ${depositAmount}`);
 
 
-            const bal = await getBalance(user_id);
+            const bal = await getBalance(uid);
             const balanceBefore = bal.amount;
             bal.amount += depositAmount;
 
+            // Push to Audit Log for Operator Visibility
+            await auditLog({
+                correlationId,
+                brandId,
+                actor_id: uid,
+                action: 'wallet:deposit',
+                entity_type: 'player',
+                entity_id: bal.dbId,
+                message: `Simulator Deposit: ${depositAmount} EUR`,
+                metadata: {
+                    request: req.body,
+                    balance_before: balanceBefore,
+                    balance_after: bal.amount,
+                    source: 'simulator'
+                }
+            }).catch(e => logger.error('[Simulator] Audit Log: Deposit Failed', e));
+
             // Push to FT (Awaited for stability)
-            await ftService.pushEvent(user_id, 'payment', {
+            await ftService.pushEvent(uid, 'payment', {
                 transaction_id: `sb-deposit-${Date.now()}`,
                 amount: depositAmount,
                 status: 'Approved',
@@ -457,7 +573,7 @@ class SimulatorService {
                 currency: 'EUR'
             }).catch(e => logger.error('[Simulator] Deposit Transaction Save Failed', e));
 
-            await ftService.pushEvent(user_id, 'balance', {
+            await ftService.pushEvent(uid, 'balance', {
                 amount: bal.amount,
                 bonus_amount: bal.bonus,
                 currency: 'EUR'
@@ -483,7 +599,7 @@ class SimulatorService {
 
         // 10. Mock Balance: (GET) /api/balance
         if (method === 'GET' && (path.endsWith('/balance') || path.includes('/balance'))) {
-            const userId = req.query?.user_id || req.user?.username || 'demo_user';
+            const userId = req.query?.user_id || req.user?.id || req.user?.username || 'demo_user';
             const bal = await getBalance(userId);
 
             // Prevent caching to ensure fresh balance data

@@ -12,7 +12,9 @@ const sandboxMiddleware = async (req, res, next) => {
         return next();
     }
 
-    const isSandbox = req.headers['x-sandbox-mode'] === 'true' || process.env.DEMO_MODE === 'true';
+    const isSandbox = req.headers['x-sandbox-mode'] === 'true' || 
+                      process.env.DEMO_MODE === 'true' || 
+                      req.path.includes('/simulator/');
 
     if (isSandbox) {
         req.isSandbox = true;

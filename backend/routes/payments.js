@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const { logger } = require('../services/logger');
+const { logger, auditLog } = require('../services/logger');
+const ftService = require('../services/ft-integration');
+const rabbitmq = require('../services/rabbitmq');
 const WalletService = require('../services/wallet-service');
 const supabaseService = require('../services/supabase');
 
@@ -91,6 +93,37 @@ router.post('/submit', async (req, res) => {
                 amount: -numericAmount,
                 currency: user.currency,
                 metadata: { correlationId, method }
+            });
+
+            // 1. Audit log: persist to platform_audit_logs
+            await auditLog({
+                correlationId,
+                brandId,
+                actor_id: user.user_id || user_id,
+                action: 'wallet:withdrawal',
+                entity_type: 'transaction',
+                entity_id: transactionId,
+                message: `Withdrawal of ${numericAmount} ${user.currency} processed`,
+                metadata: { method, balance_before: user.balance, balance_after: newBalance }
+            });
+
+            // 2. FT / RabbitMQ: send the withdrawal transaction event
+            await ftService.pushEvent(user.user_id || user_id, 'withdrawal', {
+                amount: numericAmount,
+                transaction_id: transactionId,
+                currency: user.currency,
+                status: 'Approved',
+                type: 'Debit',
+                vendor_id: method || 'bank_transfer'
+            }, { correlationId, brandId });
+
+            // 3. RabbitMQ: follow-up balance update event
+            await rabbitmq.publishEvent(`user.${user_id}.balance`, {
+                type: 'balance_update',
+                balance: newBalance,
+                bonus_balance: user.bonus_balance || 0,
+                currency: user.currency,
+                userId: user_id
             });
 
             result = {

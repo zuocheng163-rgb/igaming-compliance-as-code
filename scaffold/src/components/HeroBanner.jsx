@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNeoStrike } from '@neostrike/sdk';
+import { logSDKEvent } from '@neostrike/sdk/src/utils';
 
 const BANNERS = [
     {
@@ -9,6 +11,8 @@ const BANNERS = [
         badge: 'LIVE',
         gradient: 'linear-gradient(135deg, #0a2a1a 0%, #0d4a2a 50%, #00E676 200%)',
         emoji: '🏆',
+        actionType: 'NAVIGATE',
+        target: 'live-casino' // Category slug for Live Social Games
     },
     {
         id: 2,
@@ -18,6 +22,8 @@ const BANNERS = [
         badge: 'HOT',
         gradient: 'linear-gradient(135deg, #1a0a2a 0%, #4a0a4a 50%, #8e2de2 200%)',
         emoji: '🎁',
+        actionType: 'CLAIM_BONUS',
+        bonusCode: 'WELCOME100'
     },
     {
         id: 3,
@@ -27,15 +33,49 @@ const BANNERS = [
         badge: 'NEW',
         gradient: 'linear-gradient(135deg, #0a1a2a 0%, #0a304a 50%, #40C4FF 200%)',
         emoji: '🎡',
+        actionType: 'NAVIGATE',
+        target: 'slots' // Category slug for Social Games
     },
 ];
 
 const BADGE_COLORS = { LIVE: 'var(--color-error)', HOT: 'var(--color-error)', NEW: 'var(--color-info)' };
 
-export const HeroBanner = () => {
+export const HeroBanner = ({ onNavigate, onCategoryChange }) => {
+    const { client, pollBalance } = useNeoStrike();
     const [current, setCurrent] = useState(0);
     const [paused, setPaused] = useState(false);
+    const [claiming, setClaiming] = useState(false);
     const intervalRef = useRef(null);
+
+    const handleAction = async (banner) => {
+        if (banner.actionType === 'NAVIGATE') {
+            logSDKEvent('UI', `HeroBanner: Navigating to ${banner.target}`);
+            if (banner.target === 'live-casino' || banner.target === 'slots') {
+                onCategoryChange?.(banner.target);
+            } else {
+                onNavigate?.(banner.target);
+            }
+            return;
+        }
+
+        if (banner.actionType === 'CLAIM_BONUS') {
+            if (!client.isAuthenticated()) {
+                alert('Please login to claim your bonus!');
+                return;
+            }
+            setClaiming(true);
+            try {
+                await client.claimBonus(banner.bonusCode, 0);
+                await pollBalance();
+                alert(`Bonus ${banner.bonusCode} claimed successfully!`);
+            } catch (err) {
+                console.error('Failed to claim bonus:', err);
+                alert('Claim failed. Have you already claimed this bonus?');
+            } finally {
+                setClaiming(false);
+            }
+        }
+    };
 
     const goTo = (idx) => setCurrent(idx);
     const next = () => setCurrent(c => (c + 1) % BANNERS.length);
@@ -64,11 +104,26 @@ export const HeroBanner = () => {
                             <span style={{ display: 'inline-block', background: BADGE_COLORS[b.badge], color: '#fff', borderRadius: 'var(--radius-sm)', padding: '2px 10px', fontSize: 11, fontFamily: 'Outfit', fontWeight: 700, letterSpacing: '0.5px', marginBottom: 'var(--space-sm)' }}>{b.badge}</span>
                             <h2 style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: 28, color: 'var(--color-text-primary)', margin: '0 0 8px', lineHeight: 1.2 }}>{b.title}</h2>
                             <p style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 15, color: 'var(--color-text-secondary)', margin: '0 0 var(--space-lg)' }}>{b.subtitle}</p>
-                            <button style={{ background: 'var(--color-accent)', color: 'var(--color-base)', border: 'none', borderRadius: 'var(--radius-full)', padding: '10px 24px', fontFamily: 'DM Sans', fontWeight: 600, fontSize: 14, cursor: 'pointer', transition: 'background 150ms ease-out' }}
-                                onMouseEnter={e => e.currentTarget.style.background = 'var(--color-accent-dim)'}
-                                onMouseLeave={e => e.currentTarget.style.background = 'var(--color-accent)'}
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); handleAction(b); }}
+                                disabled={claiming}
+                                style={{ 
+                                    background: claiming && b.actionType === 'CLAIM_BONUS' ? '#666' : 'var(--color-accent)', 
+                                    color: 'var(--color-base)', 
+                                    border: 'none', 
+                                    borderRadius: 'var(--radius-full)', 
+                                    padding: '10px 24px', 
+                                    fontFamily: 'DM Sans', 
+                                    fontWeight: 600, 
+                                    fontSize: 14, 
+                                    cursor: claiming ? 'not-allowed' : 'pointer', 
+                                    transition: 'background 150ms ease-out',
+                                    opacity: claiming ? 0.7 : 1
+                                }}
+                                onMouseEnter={e => !claiming && (e.currentTarget.style.background = 'var(--color-accent-dim)')}
+                                onMouseLeave={e => !claiming && (e.currentTarget.style.background = 'var(--color-accent)')}
                             >
-                                {b.cta} →
+                                {claiming ? 'Claiming...' : `${b.cta} →`}
                             </button>
                         </div>
                     </div>

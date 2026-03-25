@@ -59,6 +59,7 @@ export const useSession = (config = {}) => {
                 headers: {
                     'x-api-key': apiKey,
                     'x-brand-id': config.brandId || '1',
+                    'x-sandbox-mode': 'true',
                     // Pass the token as Authorization Bearer header so the backend
                     // can authenticate regardless of DEMO_MODE setting
                     ...(password ? { 'Authorization': `Bearer ${password}` } : {})

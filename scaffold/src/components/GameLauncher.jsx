@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { useSeamlessWalletBridge, useSession, useFavourites } from '@neostrike/sdk';
+import { useSeamlessWalletBridge, useSession, useFavourites, useNeoStrike } from '@neostrike/sdk';
 import { logSDKEvent } from '@neostrike/sdk/src/utils';
 import theme from '../../theme.config';
 
@@ -18,25 +18,58 @@ const useRelatedGames = (gameId) => {
 
 // ─── MockGame (fallback for non-iframe games) ────────────────────────────────
 const MockGame = ({ game, onClose }) => {
-    const [balance, setBalance] = useState(1000);
+    const { balance, bonusBalance, client, pollBalance } = useNeoStrike();
     const [lastWin, setLastWin] = useState(0);
     const [isSpinning, setIsSpinning] = useState(false);
+    const [statusMsg, setStatusMsg] = useState('');
+    const [sessionNet, setSessionNet] = useState(0);
 
-    const handleSpin = () => {
-        if (balance < 10) return;
+    const BET_AMOUNT = 10;
+    const totalBalance = (balance || 0) + (bonusBalance || 0);
+    const isLoggedIn = client?.isAuthenticated();
+
+    const handleSpin = async () => {
+        if (!isLoggedIn) {
+            setStatusMsg('⚠ Please log in to play with real money.');
+            return;
+        }
+        if (totalBalance < BET_AMOUNT) {
+            setStatusMsg('⚠ Insufficient funds. Please make a deposit.');
+            return;
+        }
+
         setIsSpinning(true);
         setLastWin(0);
-        logSDKEvent('WALLET', `Simulation: Bet placed -10.00 EUR`, { gameId: game.id });
-        setBalance(prev => prev - 10);
-        setTimeout(() => {
+        setStatusMsg('');
+
+        try {
+            // Debit the bet — backend consumes bonus balance first, then real money
+            await client.debit(BET_AMOUNT);
+            setSessionNet(prev => prev - BET_AMOUNT);
+            logSDKEvent('WALLET', `Bet placed: -${BET_AMOUNT} EUR`, { gameId: game?.id });
+
+            await new Promise(r => setTimeout(r, 800)); // Spin delay
+
             const win = Math.random() > 0.7 ? Math.floor(Math.random() * 50) + 10 : 0;
             if (win > 0) {
                 setLastWin(win);
-                setBalance(prev => prev + win);
-                logSDKEvent('WALLET', `Simulation: Win credited +${win.toFixed(2)} EUR`);
+                setSessionNet(prev => prev + win);
+                await client.credit(win);
+                logSDKEvent('WALLET', `Win credited: +${win} EUR`, { gameId: game?.id });
+                setStatusMsg(`🎉 You won €${win.toFixed(2)}!`);
+            } else {
+                setStatusMsg('No win this round. Try again!');
             }
+
+            // Refresh wallet display
+            await pollBalance();
+        } catch (err) {
+            const msg = err?.response?.data?.error || err?.message || 'Transaction failed';
+            setStatusMsg(`❌ ${msg}`);
+            logSDKEvent('ERROR', `Game transaction failed: ${msg}`);
+        } finally {
             setIsSpinning(false);
-        }, 800);
+        }
     };
 
     const triggerAlert = () => {
@@ -48,21 +81,68 @@ const MockGame = ({ game, onClose }) => {
 
     return (
         <div style={{ flex: 1, background: 'linear-gradient(180deg, #1a1a2e 0%, #0f0f1a 100%)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#fff', position: 'relative' }}>
-            <div style={{ padding: '40px', borderRadius: '24px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', textAlign: 'center', width: '400px' }}>
+            <div style={{ padding: '40px', borderRadius: '24px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', textAlign: 'center', width: '420px' }}>
                 <div style={{ fontSize: '14px', color: '#888', marginBottom: '20px' }}>NEOSTRIKE SIMULATION ENGINE</div>
-                <h2 style={{ fontSize: '32px', margin: '0 0 10px 0' }}>{game.name}</h2>
-                <div style={{ fontSize: '48px', fontWeight: 'bold', margin: '30px 0', color: theme.colors.primary }}>{balance.toFixed(2)} <span style={{ fontSize: '18px' }}>EUR</span></div>
-                {lastWin > 0 && <div style={{ color: '#00ff88', fontWeight: 'bold', fontSize: '24px', marginBottom: '20px' }}>BIG WIN: +{lastWin.toFixed(2)}!</div>}
-                <button onClick={handleSpin} disabled={isSpinning || balance < 10} style={{ padding: '20px 60px', borderRadius: '40px', background: theme.colors.primary, color: '#fff', border: 'none', fontSize: '24px', fontWeight: 'bold', cursor: 'pointer' }}>
-                    {isSpinning ? 'SPINNING...' : 'SPIN (10 EUR)'}
+                <h2 style={{ fontSize: '32px', margin: '0 0 20px 0' }}>{game?.name}</h2>
+
+                {/* Balance display */}
+                <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '12px', padding: '16px', marginBottom: '20px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-around' }}>
+                        <div>
+                            <div style={{ fontSize: '10px', color: '#555', letterSpacing: '1px', marginBottom: '4px' }}>REAL BALANCE</div>
+                            <div style={{ fontSize: '28px', fontWeight: 'bold', color: theme.colors.primary }}>
+                                €{(balance || 0).toFixed(2)}
+                            </div>
+                        </div>
+                        {(bonusBalance || 0) > 0 && (
+                            <div>
+                                <div style={{ fontSize: '10px', color: '#555', letterSpacing: '1px', marginBottom: '4px' }}>BONUS (used first)</div>
+                                <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#ffaa00' }}>
+                                    €{(bonusBalance || 0).toFixed(2)}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    {sessionNet !== 0 && (
+                        <div style={{ marginTop: '8px', fontSize: '12px', color: sessionNet >= 0 ? '#00ff88' : '#ff6464', fontWeight: '700' }}>
+                            Session P&L: {sessionNet >= 0 ? '+' : ''}€{sessionNet.toFixed(2)}
+                        </div>
+                    )}
+                </div>
+
+                {lastWin > 0 && (
+                    <div style={{ color: '#00ff88', fontWeight: 'bold', fontSize: '24px', marginBottom: '16px' }}>
+                        BIG WIN: +€{lastWin.toFixed(2)}! 🎉
+                    </div>
+                )}
+
+                {statusMsg && (
+                    <div style={{ padding: '10px', marginBottom: '16px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', color: '#aaa', fontSize: '13px' }}>
+                        {statusMsg}
+                    </div>
+                )}
+
+                <button
+                    onClick={handleSpin}
+                    disabled={isSpinning || !isLoggedIn || totalBalance < BET_AMOUNT}
+                    style={{ padding: '20px 60px', borderRadius: '40px', background: (!isLoggedIn || totalBalance < BET_AMOUNT) ? '#333' : theme.colors.primary, color: '#fff', border: 'none', fontSize: '24px', fontWeight: 'bold', cursor: (isSpinning || !isLoggedIn || totalBalance < BET_AMOUNT) ? 'not-allowed' : 'pointer', opacity: isSpinning ? 0.7 : 1 }}
+                >
+                    {isSpinning ? 'SPINNING...' : `SPIN (€${BET_AMOUNT})`}
                 </button>
-                <div style={{ marginTop: '40px' }}>
+
+                {!isLoggedIn && (
+                    <div style={{ marginTop: '12px', fontSize: '12px', color: '#ffaa00' }}>
+                        Log in to bet using your real wallet
+                    </div>
+                )}
+
+                <div style={{ marginTop: '32px' }}>
                     <button onClick={triggerAlert} style={{ padding: '10px 20px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', color: '#ccc', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', fontSize: '12px' }}>
                         Simulate RG Alert
                     </button>
                 </div>
             </div>
-            <div style={{ position: 'absolute', bottom: '20px', color: '#555', fontSize: '11px' }}>This is a simulated game environment for SDK feature demonstration only.</div>
+            <div style={{ position: 'absolute', bottom: '20px', color: '#555', fontSize: '11px' }}>Bonus balance is consumed first before real money.</div>
         </div>
     );
 };

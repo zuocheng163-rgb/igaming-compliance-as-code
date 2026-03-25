@@ -89,6 +89,38 @@ app.use('/api/providers', featureGate('PROVIDERS'), require('./routes/providers'
 app.use('/api/promotions', require('./routes/promotions'));
 app.use('/api/v1/payments', require('./routes/payments'));
 
+// F12-C: Public Live Wins Ticker Endpoint
+app.get('/api/live-wins', async (req, res) => {
+  try {
+    const { period = 'daily', limit = 20 } = req.query;
+    const { data, error } = await supabaseService.client
+      .from('platform_audit_logs')
+      .select('id, actor_id, metadata, timestamp')
+      .eq('action', 'wallet:credit')
+      .order('timestamp', { ascending: false })
+      .limit(parseInt(limit));
+
+    if (error) throw error;
+
+    // Map logs to ticker format
+    const wins = (data || []).map(log => ({
+      id: log.id,
+      player_handle: log.actor_id.substring(0, 3) + '***' + log.actor_id.slice(-2),
+      game_name: log.metadata?.request?.game_id || 'Lucky Slot',
+      provider: 'NeoStrike',
+      thumbnail_url: '',
+      win_amount: log.metadata?.request?.amount || 0,
+      currency: 'EUR',
+      timestamp: log.timestamp
+    }));
+
+    res.json({ wins });
+  } catch (err) {
+    logger.error('Failed to fetch live wins', { error: err.message });
+    res.status(500).json({ error: 'Failed to fetch wins' });
+  }
+});
+
 app.get('/', (req, res) => {
   res.send('iGaming Integration Platform Backend Running');
 });

@@ -162,7 +162,20 @@ const FilterBar = ({ onSearch, activeCategory, onCategoryChange, activeProvider,
     );
 };
 
-export const GameLobby = () => {
+const GameSlider = ({ title, games, onLaunch, isFavourite, onToggleFavourite }) => (
+    <div style={{ marginBottom: 'var(--space-2xl)' }}>
+        <h2 style={{ margin: '0 0 var(--space-lg) 0', fontFamily: 'Outfit, sans-serif', fontWeight: 600, fontSize: 22, color: 'var(--color-text-primary)' }}>{title}</h2>
+        <div style={{ display: 'flex', gap: 'var(--space-md)', overflowX: 'auto', paddingBottom: 16, scrollbarWidth: 'none' }}>
+            {games.map(game => (
+                <div key={game.id} style={{ width: 140, flexShrink: 0 }}>
+                    <GameCard game={game} onLaunch={onLaunch} isFavourite={isFavourite} onToggleFavourite={onToggleFavourite} />
+                </div>
+            ))}
+        </div>
+    </div>
+);
+
+export const GameLobby = ({ activePage, onNavigate }) => {
     const { isAuthenticated } = useSession();
     const { games, loading, error, search, filter, loadMore, total } = useGames();
     const { favourites, isFavourite, toggleFavourite } = useFavourites();
@@ -177,6 +190,13 @@ export const GameLobby = () => {
 
     const mode = isAuthenticated ? 'real' : 'demo';
     const { launchUrl, error: launchError } = useGameLaunch(selectedGame?.id, { mode });
+
+    useEffect(() => {
+        if (activePage === 'live') handleCategoryChange('live-casino');
+        else if (activePage === 'social') handleCategoryChange('slots');
+        else if (activePage === 'table') handleCategoryChange('table-games');
+        else if (activePage === 'home') handleCategoryChange('all');
+    }, [activePage]);
 
     useEffect(() => {
         if (launchError && launchError === 'DEMO_NOT_SUPPORTED') {
@@ -200,87 +220,117 @@ export const GameLobby = () => {
 
     return (
         <div style={{ padding: '0 var(--space-xl) var(--space-2xl)' }}>
-
-            {/* F12-E Hero Banner */}
-            <HeroBanner />
-
-            {/* F12-C Live Wins Ticker */}
-            <LiveWinsTicker />
-
-            {/* F12-D Filter Bar */}
-            <FilterBar
-                onSearch={handleSearch}
-                activeCategory={activeCategory}
-                onCategoryChange={handleCategoryChange}
-                activeProvider={activeProvider}
-                onProviderChange={setActiveProvider}
-                sortBy={sortBy}
-                onSortChange={setSortBy}
-                bonusBuy={bonusBuy}
-                onBonusBuyToggle={() => setBonusBuy(b => !b)}
-            />
-
-            {/* SDK Carousels */}
-            {recentlyPlayed.length > 0 && (
-                <LobbyCarousel title="Continue Playing" games={recentlyPlayed} onLaunch={handleLaunch} />
-            )}
-
-            {favourites.length > 0 && (
-                <LobbyCarousel title="Your Favourites" games={favourites} onLaunch={handleLaunch} />
-            )}
-
-            {/* Results Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: 'var(--space-2xl) 0 var(--space-lg)' }}>
-                <h2 style={{ margin: 0, fontFamily: 'Outfit, sans-serif', fontWeight: 600, fontSize: 22, color: 'var(--color-text-primary)' }}>All Games</h2>
-                <span style={{ color: 'var(--color-text-muted)', fontSize: 13, fontFamily: 'DM Sans' }}>Showing {games.length} of {total}</span>
-            </div>
-
-            {/* Error State */}
-            {error && (
-                <div style={{ padding: 'var(--space-lg)', background: 'rgba(255,82,82,0.08)', border: '1px solid rgba(255,82,82,0.4)', borderRadius: 'var(--radius-md)', color: 'var(--color-error)', marginBottom: 'var(--space-xl)' }}>
-                    <strong>Load Error:</strong> {error}
+            {activePage === 'providers' ? (
+                <div style={{ marginTop: 'var(--space-xl)' }}>
+                    <h2 style={{ margin: '0 0 var(--space-lg) 0', fontFamily: 'Outfit, sans-serif', fontWeight: 600, fontSize: 22, color: 'var(--color-text-primary)' }}>Game Providers</h2>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 'var(--space-md)' }}>
+                        {PROVIDERS.filter(p => p !== 'All Providers').map(p => (
+                            <button key={p} onClick={() => { setActiveProvider(p); onNavigate('home'); }} style={{ padding: '24px', background: 'var(--color-surface-raised)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', color: 'var(--color-text-primary)', fontFamily: 'Outfit', fontSize: 18, fontWeight: 600, cursor: 'pointer', transition: 'background 150ms' }}
+                                onMouseEnter={e => e.currentTarget.style.background = 'var(--color-surface-overlay)'}
+                                onMouseLeave={e => e.currentTarget.style.background = 'var(--color-surface-raised)'}
+                            >
+                                {p}
+                            </button>
+                        ))}
+                    </div>
                 </div>
-            )}
-
-            {/* F12-A Games Grid */}
-            <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
-                gap: 'var(--space-md)',
-            }}>
-                {loading ? (
-                    Array(12).fill(0).map((_, i) => (
-                        <div key={i} className="skeleton" style={{ aspectRatio: '3/4', borderRadius: 'var(--radius-lg)' }} />
-                    ))
-                ) : (
-                    games.map(game => (
-                        <GameCard
-                            key={game.id}
-                            game={game}
-                            onLaunch={handleLaunch}
-                            isFavourite={isFavourite}
-                            onToggleFavourite={toggleFavourite}
+            ) : activePage === 'recent' ? (
+                <div style={{ marginTop: 'var(--space-xl)' }}>
+                    <GameSlider title="Recent Playing Games" games={recentlyPlayed} onLaunch={handleLaunch} isFavourite={isFavourite} onToggleFavourite={toggleFavourite} />
+                </div>
+            ) : activePage === 'favourites' ? (
+                <div style={{ marginTop: 'var(--space-xl)' }}>
+                    <GameSlider title="Your Favourites" games={favourites} onLaunch={handleLaunch} isFavourite={isFavourite} onToggleFavourite={toggleFavourite} />
+                </div>
+            ) : (
+                <>
+                    {/* F12-E Hero Banner */}
+                    {activePage === 'home' && (
+                        <HeroBanner 
+                            onNavigate={onNavigate} 
+                            onCategoryChange={handleCategoryChange} 
                         />
-                    ))
-                )}
-            </div>
+                    )}
 
-            {/* Load More */}
-            {!loading && games.length < total && (
-                <div style={{ display: 'flex', justifyContent: 'center', marginTop: 'var(--space-2xl)' }}>
-                    <button onClick={loadMore} style={{
-                        padding: '12px 40px', borderRadius: 'var(--radius-full)',
-                        background: 'transparent', color: 'var(--color-accent)',
-                        border: '2px solid var(--color-accent)',
-                        cursor: 'pointer', fontFamily: 'DM Sans', fontWeight: 600, fontSize: 14,
-                        transition: 'background 150ms ease-out',
-                    }}
-                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-accent-glow)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                    >
-                        Load More Games
-                    </button>
-                </div>
+                    {/* F12-C Live Wins Ticker */}
+                    {activePage === 'home' && <LiveWinsTicker />}
+
+                    {/* F12-D Filter Bar */}
+                    <FilterBar
+                        onSearch={handleSearch}
+                        activeCategory={activeCategory}
+                        onCategoryChange={handleCategoryChange}
+                        activeProvider={activeProvider}
+                        onProviderChange={setActiveProvider}
+                        sortBy={sortBy}
+                        onSortChange={setSortBy}
+                        bonusBuy={bonusBuy}
+                        onBonusBuyToggle={() => setBonusBuy(b => !b)}
+                    />
+
+                    {/* SDK Carousels - Changed to GameSlider for clickability and F12 tokens */}
+                    {activePage === 'home' && recentlyPlayed.length > 0 && (
+                        <GameSlider title="Continue Playing" games={recentlyPlayed} onLaunch={handleLaunch} isFavourite={isFavourite} onToggleFavourite={toggleFavourite} />
+                    )}
+
+                    {activePage === 'home' && favourites.length > 0 && (
+                        <GameSlider title="Your Favourites" games={favourites} onLaunch={handleLaunch} isFavourite={isFavourite} onToggleFavourite={toggleFavourite} />
+                    )}
+
+                    {/* Results Header */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: 'var(--space-2xl) 0 var(--space-lg)' }}>
+                        <h2 style={{ margin: 0, fontFamily: 'Outfit, sans-serif', fontWeight: 600, fontSize: 22, color: 'var(--color-text-primary)' }}>{activeCategory === 'all' ? 'All Games' : activeCategory.toUpperCase().replace('-', ' ')}</h2>
+                        <span style={{ color: 'var(--color-text-muted)', fontSize: 13, fontFamily: 'DM Sans' }}>Showing {games.length} of {total}</span>
+                    </div>
+
+                    {/* Error State */}
+                    {error && (
+                        <div style={{ padding: 'var(--space-lg)', background: 'rgba(255,82,82,0.08)', border: '1px solid rgba(255,82,82,0.4)', borderRadius: 'var(--radius-md)', color: 'var(--color-error)', marginBottom: 'var(--space-xl)' }}>
+                            <strong>Load Error:</strong> {error}
+                        </div>
+                    )}
+
+                    {/* F12-A Games Grid */}
+                    <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+                        gap: 'var(--space-md)',
+                    }}>
+                        {loading ? (
+                            Array(12).fill(0).map((_, i) => (
+                                <div key={i} className="skeleton" style={{ aspectRatio: '3/4', borderRadius: 'var(--radius-lg)' }} />
+                            ))
+                        ) : (
+                            games.map(game => (
+                                <GameCard
+                                    key={game.id}
+                                    game={game}
+                                    onLaunch={handleLaunch}
+                                    isFavourite={isFavourite}
+                                    onToggleFavourite={toggleFavourite}
+                                />
+                            ))
+                        )}
+                    </div>
+
+                    {/* Load More */}
+                    {!loading && games.length < total && (
+                        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 'var(--space-2xl)' }}>
+                            <button onClick={loadMore} style={{
+                                padding: '12px 40px', borderRadius: 'var(--radius-full)',
+                                background: 'transparent', color: 'var(--color-accent)',
+                                border: '2px solid var(--color-accent)',
+                                cursor: 'pointer', fontFamily: 'DM Sans', fontWeight: 600, fontSize: 14,
+                                transition: 'background 150ms ease-out',
+                            }}
+                                onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-accent-glow)'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                            >
+                                Load More Games
+                            </button>
+                        </div>
+                    )}
+                </>
             )}
 
             {/* Game Launch Overlay */}
