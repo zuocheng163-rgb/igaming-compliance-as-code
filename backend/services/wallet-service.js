@@ -447,7 +447,8 @@ class WalletService {
                 transaction_id: transactionId,
                 currency: user.currency,
                 status: 'Approved',
-                provider: paymentResult.provider
+                provider: paymentResult.provider,
+                vendor_id: paymentResult.provider || 'netent'
             }, { correlationId, brandId });
 
             // Balance Sync (Sync state after Deposit)
@@ -867,7 +868,8 @@ class WalletService {
             transaction_id: transactionId,
             currency: pmt.currency,
             status: 'Approved',
-            provider: pspAdapter
+            provider: pspAdapter,
+            vendor_id: pspAdapter || 'netent'
         });
 
         // AI Duty of Care: Evaluate Risk after confirmation

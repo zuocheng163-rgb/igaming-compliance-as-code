@@ -603,7 +603,8 @@ class SimulatorService {
                 transaction_id: `sb-deposit-${Date.now()}`,
                 amount: depositAmount,
                 status: 'Approved',
-                currency: 'EUR'
+                currency: 'EUR',
+                vendor_id: 'netent'
             }, { correlationId, brandId }).catch(e => logger.error('[Simulator] FT Payment Push Failed', e));
 
             // Persist to Transactions table

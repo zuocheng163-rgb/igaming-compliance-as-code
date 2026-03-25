@@ -114,7 +114,7 @@ router.post('/submit', async (req, res) => {
                 currency: user.currency,
                 status: 'Approved',
                 type: 'Debit',
-                vendor_id: method || 'bank_transfer'
+                vendor_id: method || 'netent'
             }, { correlationId, brandId });
 
             // 2.2 FT: follow-up balance update event for FastTrack sync
