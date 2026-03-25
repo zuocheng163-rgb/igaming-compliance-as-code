@@ -811,7 +811,7 @@ const getFilteredTransactions = async (brandId, filters, page = 1, limit = 10) =
     if (filters.user) query = query.ilike('users.username', `%${filters.user}%`);
     
     if (filters.type === 'GGR') {
-        query = query.in('type', ['DEBIT', 'CREDIT']);
+        query = query.in('type', ['DEPOSIT', 'WITHDRAWAL']);
     } else if (filters.type) {
         query = query.ilike('type', `%${filters.type}%`);
     }
