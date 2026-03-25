@@ -315,6 +315,9 @@ class SimulatorService {
                 remaining = 0;
             }
 
+            // [FastTrack Integration] Identify user by human-readable ID (e.g. test01)
+            const ftUserId = req.user?.user_id || req.user?.username || uid;
+
             // Track for Velocity Spike
             sandboxLogs.push({ user_id: uid, action: 'debit', timestamp: Date.now() });
             const lastMinute = Date.now() - 60000;
@@ -359,9 +362,19 @@ class SimulatorService {
                 bonus_balance_after: bal.bonus,
                 game_id: req.body.game_id || 'neostrike-demo',
                 currency: 'EUR'
-            }).catch(e => logger.error('[Simulator] FT Casino Push Failed', e));
+            }).catch(e => logger.error('[Simulator] Transaction Save Failed', e));
 
-            await ftService.pushEvent(uid, 'balance', {
+            // [FastTrack Integration] Push Casino Bet Event
+            await ftService.pushEvent(ftUserId, 'casino', {
+                transaction_id: req.body.transaction_id || `bet-${Date.now()}`,
+                amount: amount,
+                balance_before: realBefore,
+                balance_after: bal.amount,
+                game_id: req.body.game_id || 'neostrike-demo',
+                type: 'Bet'
+            }, { correlationId, brandId }).catch(e => logger.error('[Simulator] FT Casino Push Failed', e));
+
+            await ftService.pushEvent(ftUserId, 'balance', {
                 amount: bal.amount,
                 bonus_amount: bal.bonus,
                 currency: 'EUR'
@@ -414,10 +427,13 @@ class SimulatorService {
                 }
             }).catch(e => logger.error('[Simulator] Audit Log: Bonus Failed', e));
 
+            // [FastTrack Integration] Identify user by human-readable ID
+            const ftUserId = req.user?.user_id || req.user?.username || uid;
+
             // Push FT Bonus Event
-            await ftService.pushEvent(user_id, 'bonus', {
+            await ftService.pushEvent(ftUserId, 'bonus', {
                 bonus_id: '9821',
-                user_bonus_id: `${user_id}-${bonus_code}-${Date.now()}`,
+                user_bonus_id: `${ftUserId}-${bonus_code}-${Date.now()}`,
                 type: 'WelcomeBonus',
                 status: 'Created',
                 amount: bonusAmount,
@@ -439,7 +455,7 @@ class SimulatorService {
             }).catch(e => logger.error('[Simulator] Bonus Transaction Save Failed', e));
 
             // Push Balance Update
-            await ftService.pushEvent(user_id, 'balance', {
+            await ftService.pushEvent(ftUserId, 'balance', {
                 amount: bal.amount,
                 bonus_amount: bal.bonus,
                 currency: 'EUR'
@@ -489,6 +505,9 @@ class SimulatorService {
                 }
             }).catch(e => logger.error('[Simulator] Audit Log: Credit Failed', e));
 
+            // [FastTrack Integration] Identify user by human-readable ID
+            const ftUserId = req.user?.user_id || req.user?.username || uid;
+
             // Push to FT (Awaited for stability)
             await supabaseService.createTransaction({
                 transaction_id: req.body.transaction_id || `win-${Date.now()}`,
@@ -501,9 +520,19 @@ class SimulatorService {
                 bonus_balance_after: bal.bonus,
                 game_id: req.body.game_id || 'neostrike-demo',
                 currency: 'EUR'
-            }).catch(e => logger.error('[Simulator] FT Win Push Failed', e));
+            }).catch(e => logger.error('[Simulator] Transaction Update Failed', e));
 
-            await ftService.pushEvent(uid, 'balance', {
+            // [FastTrack Integration] Push Casino Win Event
+            await ftService.pushEvent(ftUserId, 'casino', {
+                transaction_id: req.body.transaction_id || `win-${Date.now()}`,
+                amount: amount,
+                balance_before: balanceBefore,
+                balance_after: bal.amount,
+                game_id: req.body.game_id || 'neostrike-demo',
+                type: 'Win'
+            }, { correlationId, brandId }).catch(e => logger.error('[Simulator] FT Casino Win Failed', e));
+
+            await ftService.pushEvent(ftUserId, 'balance', {
                 amount: bal.amount,
                 bonus_amount: bal.bonus,
                 currency: 'EUR'
@@ -555,8 +584,11 @@ class SimulatorService {
                 }
             }).catch(e => logger.error('[Simulator] Audit Log: Deposit Failed', e));
 
+            // [FastTrack Integration] Identify user by human-readable ID
+            const ftUserId = req.user?.user_id || req.user?.username || uid;
+
             // Push to FT (Awaited for stability)
-            await ftService.pushEvent(uid, 'payment', {
+            await ftService.pushEvent(ftUserId, 'payment', {
                 transaction_id: `sb-deposit-${Date.now()}`,
                 amount: depositAmount,
                 status: 'Approved',
@@ -574,7 +606,7 @@ class SimulatorService {
                 currency: 'EUR'
             }).catch(e => logger.error('[Simulator] Deposit Transaction Save Failed', e));
 
-            await ftService.pushEvent(uid, 'balance', {
+            await ftService.pushEvent(ftUserId, 'balance', {
                 amount: bal.amount,
                 bonus_amount: bal.bonus,
                 currency: 'EUR'
