@@ -273,13 +273,24 @@ class SimulatorService {
             res.setHeader('Pragma', 'no-cache');
             res.setHeader('Expires', '0');
 
-            // Include timestamp to force uniqueness
-            const bonuses = this.getDemoBonuses();
+            // Fetch real active templates from the database
+            const activeTemplates = await supabaseService.getActivePromotions(1);
+            
+            // Map templates to the format expected by the frontend
+            const bonuses = (activeTemplates || []).map(t => ({
+                id: String(t.id),
+                bonus_code: t.bonus_code || `PROMO-${t.id}`,
+                name: t.name,
+                description: t.description || `Special offer: ${t.reward_value} EUR matching bonus.`,
+                amount: t.reward_value || 0,
+                type: t.reward_type
+            }));
+
             const promoResponse = {
                 promotions: bonuses.map(b => ({
-                    id: b.bonus_code,
+                    id: b.id,
                     name: b.name,
-                    description: `Special offer: ${b.amount} EUR matching bonus.`
+                    description: b.description
                 })),
                 bonuses: bonuses,
                 Data: bonuses,

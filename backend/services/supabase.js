@@ -809,7 +809,12 @@ const getFilteredTransactions = async (brandId, filters, page = 1, limit = 10) =
     let query = supabase.from('transactions').select('*, users!inner(user_id, username)', { count: 'exact' }).eq('brand_id', brandId);
     if (filters.transaction_id) query = query.ilike('transaction_id', `%${filters.transaction_id}%`);
     if (filters.user) query = query.ilike('users.username', `%${filters.user}%`);
-    if (filters.type) query = query.ilike('type', `%${filters.type}%`);
+    
+    if (filters.type === 'GGR') {
+        query = query.in('type', ['DEBIT', 'CREDIT']);
+    } else if (filters.type) {
+        query = query.ilike('type', `%${filters.type}%`);
+    }
     if (filters.amount) {
         const { operator, value } = filters.amount;
         if (operator === '>') query = query.gt('amount', value);

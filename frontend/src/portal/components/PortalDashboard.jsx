@@ -138,7 +138,7 @@ const PortalDashboard = ({ user, token, productOffering, onLogout }) => {
                                 } else if (kpi.label === 'Total GGR') {
                                     handleNavigate('/portal/wallet', () => {
                                         sessionStorage.setItem('transactionFilters', JSON.stringify({
-                                            type: 'DEBIT', // Closest to GGR
+                                            type: 'GGR',
                                             status: 'success',
                                             date: getDateFilterValue(dateRange)
                                         }));
