@@ -1,23 +1,20 @@
+const { logger, setDbLogHook } = require('./services/logger');
+
+// Track and trace deprecation warnings to find the source of url.parse()
+process.on('warning', (warning) => {
+  if (warning.name === 'DeprecationWarning') {
+    logger.error(`[DeprecationWarning] ${warning.message}`, { stack: warning.stack });
+  }
+});
+
 const dotenv = require('dotenv');
 try { dotenv.config(); } catch (e) { /* .env not present in production, use Vercel env vars */ }
 
 const express = require('express');
 const http = require('http');
 const cors = require('cors');
-
-const { logger, setDbLogHook } = require('./services/logger');
 const supabaseService = require('./services/supabase');
-
-// Track and trace deprecation warnings to find the source of url.parse()
-process.on('warning', (warning) => {
-  if (warning.name === 'DeprecationWarning') {
-    console.error(`[DeprecationWarning] ${warning.message}`);
-    console.error(warning.stack);
-  }
-});
-
 const operatorRoutes = require('./routes/operator');
-const providerRoutes = require('./routes/providers');
 // const { initSocket } = require('./services/socket');
 
 const helmet = require('helmet');

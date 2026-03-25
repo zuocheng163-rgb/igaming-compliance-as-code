@@ -117,6 +117,14 @@ router.post('/submit', async (req, res) => {
                 vendor_id: method || 'bank_transfer'
             }, { correlationId, brandId });
 
+            // 2.2 FT: follow-up balance update event for FastTrack sync
+            await ftService.pushEvent(user.user_id || user_id, 'balance', {
+                balances: [
+                    { amount: newBalance, currency: user.currency, key: 'real_money', exchange_rate: 1 },
+                    { amount: user.bonus_balance || 0, currency: user.currency, key: 'bonus_money', exchange_rate: 1 }
+                ]
+            }, { correlationId, brandId }).catch(e => logger.error('[Payments API] FT Balance Push Failed', e));
+
             // 3. RabbitMQ: follow-up balance update event
             await rabbitmq.publishEvent(`user.${user_id}.balance`, {
                 type: 'balance_update',
