@@ -1,0 +1,572 @@
+NeoStrike
+Product Requirements Document
+
+F13 — Agent-Friendly API Layer (AFA)
+Enabling autonomous AI agents to operate the NeoStrike Operator Portal
+Field
+Value
+Document ID
+NeoStrike_PRD_F13_AFA_v1_0
+Version
+1.0
+Status
+Draft — For Review
+Date
+March 2026
+Sprint
+8 (Proposed)
+Depends on
+F8-BM, F9, F10, F11, Core Tenant Portal
+Related
+F13 Autopilot (brainstorm context)
+
+Scope clarification
+This PRD covers the Agent-Friendly API (AFA) layer only — structured, machine-readable HTTP interfaces that allow external AI agent frameworks (Claude CoWork, OpenAI Agents SDK, LangChain, etc.) to operate the portal autonomously. It does not specify a Copilot UI, an MCP server, or bundled first-party agents. Those remain separate roadmap items.
+
+
+1.  Executive Summary
+Today the NeoStrike Operator Portal is a human-facing web GUI. Operators log in, read dashboards, investigate alerts, and take action. This model assumes constant human attention — a constraint that limits operating leverage as operator businesses scale.
+
+F13-AFA adds a parallel interface to the same platform. Every capability exposed in the Tenant Portal — metrics retrieval, alert querying, risk-profile analysis, pre-authorised interventions — is also accessible via a structured, machine-readable HTTP API designed for consumption by autonomous AI agents.
+
+This means an operator can configure AI agents (using any agent framework: Claude CoWork, OpenAI Agents SDK, LangChain, or custom-built) to handle routine daily operations. The leadership team sets policy boundaries once. Agents operate within those boundaries continuously, escalating only when human judgment is genuinely required.
+
+Business framing
+The Operator Portal remains unchanged for human users. AFA is an additive layer — same data, same action permissions, same trust model — but exposed through an interface that agents can consume programmatically. No backend logic is duplicated.
+
+2.  Problem Statement
+2.1  The daily operations gap
+Operator teams currently perform repetitive, structured tasks manually: pulling GGR reports, scanning RG alert queues, reviewing transaction anomalies, issuing welfare outreach. These tasks follow deterministic rules already encoded in the NeoStrike platform. Human operators are redundant for the detection step — they are only genuinely needed for edge-case judgment.
+
+2.2  Current API design is not agent-friendly
+NeoStrike’s existing REST APIs were designed for the portal frontend — a human-readable interface. They exhibit characteristics that make autonomous agent operation unreliable:
+
+	•	Errors return free-text messages that agents cannot programmatically act on
+	•	No machine-readable capability manifest — agents cannot self-configure
+	•	No structured recommended-action field — agents must reason about raw data
+	•	Auth is session-based (human SSO) — no policy-scoped agent token model
+	•	No event push — agents must poll, creating noise and latency
+
+2.3  Target state
+An operator’s leadership team should be able to configure a set of AI agents, grant them scoped credentials, and trust that the platform will execute pre-authorised operations with full audit logging — while escalating anything outside policy for human review.
+
+
+3.  Goals and Non-Goals
+3.1  Goals
+	•	Enable any standards-compliant AI agent framework to authenticate, discover capabilities, and operate the portal via HTTP APIs.
+	•	Provide machine-readable, semantically structured responses that agents can act on without LLM interpretation of free text.
+	•	Implement a three-tier trust model (Observe / Pre-authorised / Human-gated) enforced at the API gateway level.
+	•	Provide an Analysis API endpoint that returns structured AI-generated diagnoses of alerts and anomalies, keeping domain reasoning centralised in NeoStrike.
+	•	Support real-time push notifications (webhook + SSE) so agents are event-driven, not poll-driven.
+	•	Guarantee full audit logging of every agent action under the existing 7-year immutable retention regime.
+	•	Publish a capability manifest and OpenAPI 3.1 schema so agents self-configure without bespoke integration work.
+
+3.2  Non-Goals
+	•	Building a Copilot UI (natural language chat over portal data) — separate roadmap item
+	•	Building an MCP server at the backend — not required for agent interoperability
+	•	Shipping first-party bundled agents — those are a layer above AFA
+	•	Replacing or modifying the human-facing Tenant Portal web GUI
+	•	Autonomous action without operator-defined policy scopes — all agent actions require pre-authorisation
+
+4.  Architecture Overview
+AFA is a gateway and API surface layer. It sits in front of the existing NeoStrike platform, translating agent requests into internal service calls and returning structured, semantically rich responses. No core platform logic is moved or duplicated.
+
+4.1  Layer topology
+Layer
+Description
+New / Existing
+AI agent frameworks
+Claude CoWork, OpenAI Agents SDK, LangChain, custom agents
+External
+Web GUI
+Human-facing Tenant Portal — unchanged
+Existing
+AFA Gateway
+Auth, routing, policy enforcement, schema validation, audit hook
+New (F13-AFA)
+AFA API surface
+Metrics, Alerts, Analysis, Actions, Audit endpoints
+New (F13-AFA)
+Trust / Policy Engine
+Enforces T1/T2/T3 scope claims in agent JWT
+New (F13-AFA)
+Discovery Layer
+/.well-known/agent.json, OpenAPI schema endpoint
+New (F13-AFA)
+Async Push
+Webhook subscription registry + SSE stream
+New (F13-AFA)
+Core platform
+F8, F9, F10, F11, Compliance, Tenant Portal — unchanged
+Existing
+
+4.2  What makes an API agent-friendly
+Five design principles distinguish AFA endpoints from the existing portal REST APIs:
+
+1.  Semantic HTTP responses.  Every error includes a machine-readable error_code, error_category, and suggested_action field. Agents can branch on these without LLM interpretation.
+
+2.  Agent discovery manifest.  A /.well-known/agent.json file declares all capabilities, required scopes, rate limits, and policy tier mappings. Agent frameworks can self-configure from this file.
+
+3.  Policy-scoped agent auth.  Agent JWTs carry a policy_scope claim array (e.g. ["metrics:read", "alerts:read", "player:restrict:pre-auth"]) that maps directly to the T1/T2/T3 trust tiers. The gateway enforces scope at request time.
+
+4.  Built-in Analysis API.  Agents call POST /v1/ops/analysis/alerts/{id} to receive a structured AI diagnosis. NeoStrike holds the domain model; the agent does not need to reason about raw RG scores or transaction patterns itself.
+
+5.  Async event push.  Agents subscribe to alert streams. The platform pushes events to agent webhook endpoints or SSE connections when they occur, eliminating polling latency and noise.
+
+
+5.  Three-Tier Trust Model
+All agent operations are governed by a three-tier trust model. Operators configure each agent’s tier at token-issuance time. The gateway enforces the tier on every request.
+
+Tier
+Name
+What agents can do
+Approval required
+Typical use case
+T1
+Observe & Report
+All read operations: metrics, alerts, player profiles, audit logs, compliance reports
+None — executes immediately
+GGR monitoring, scheduled reporting, alert triage
+T2
+Pre-authorised Actions
+Pre-defined write operations within operator-configured policy bounds (e.g. restrict player if risk score ≥ 10, forfeit bonus if flagged)
+None — executes immediately and writes to audit log
+Player protection, bonus integrity
+T3
+Human-in-the-loop
+Proposes actions that exceed policy bounds — creates a pending approval record in the portal welfare queue
+Human operator must approve before execution
+Permanent exclusion, large bonus modification, compliance escalation
+
+Regulatory framing
+All T2 and T3 operations are recorded in the existing F11 immutable audit log with agent_id, policy_scope, and execution_timestamp. For UKGC and MGA compliance: T2 actions are treated as pre-authorised operator instructions; T3 actions require an identifiable human approver recorded in the audit trail.
+
+6.  API Domains — Functional Specification
+6.1  Metrics API
+Base path: /v1/ops/metrics/  |  Tier: T1 (read-only)  |  Required scope: metrics:read
+
+Endpoint
+Description
+Key parameters
+GET /v1/ops/metrics/summary
+Aggregated dashboard: GGR, active players, deposit volume, withdrawal volume, bonus exposure
+period, compare_period, segment
+GET /v1/ops/metrics/ggr
+GGR breakdown by provider, game category, and player cohort
+period, provider, cohort, granularity
+GET /v1/ops/metrics/players
+Player counts: registrations, active, churned, KYC status distribution
+period, country, risk_band
+GET /v1/ops/metrics/payments
+PSP approval rates, deposit/withdrawal volumes, refund rates, smart-routing performance
+period, psp, method
+GET /v1/ops/metrics/bonuses
+Bonus wallet stats: issued, active, converted, forfeited, expired, wagering completion rates
+period, bonus_type, template_id
+GET /v1/ops/metrics/rg
+Duty of Care summary: open welfare cases, risk band distribution, interventions triggered
+period, risk_band
+
+All Metrics API endpoints support period=today|7d|30d|90d|custom and an optional compare_period for delta calculation. Responses include a data_as_of timestamp and freshness_seconds field.
+
+6.2  Alerts API
+Base path: /v1/ops/alerts/  |  Tier: T1 read, T2 write  |  Required scope: alerts:read
+
+Endpoint
+Description
+Key parameters
+GET /v1/ops/alerts
+Paginated alert list. Each alert includes player_id, alert_type, composite_risk_score, triggered_signals[], status, created_at, and _links.analyse HATEOAS link.
+status, category, risk_band, player_id, since, limit, cursor
+GET /v1/ops/alerts/{id}
+Full alert detail including all signal components and timeline
+—
+POST /v1/ops/alerts/subscriptions
+Register a webhook URL or open an SSE stream for real-time event push.
+event_types[], callback_url or stream=sse, filter
+DELETE /v1/ops/alerts/subscriptions/{id}
+Deregister a webhook subscription
+—
+PATCH /v1/ops/alerts/{id}/status
+Mark alert as acknowledged or resolved (T2 scope required)
+status, agent_note
+
+6.3  Analysis API
+Base path: /v1/ops/analysis/  |  Tier: T1  |  Required scope: analysis:read
+
+The Analysis API is the feature that makes AFA more than structured REST. Agents call it when they detect something requiring domain interpretation. NeoStrike’s internal model returns a structured diagnosis — the agent does not need domain expertise baked in.
+
+Endpoint
+Description
+Returns
+POST /v1/ops/analysis/alerts/{id}
+Structured AI diagnosis of a specific alert. Accepts optional context (agent_findings, recent_actions) to improve diagnosis quality.
+severity, likely_cause, contributing_factors[], recommended_actions[], confidence, regulatory_relevance
+POST /v1/ops/analysis/player/{id}
+Player risk profile synthesis across all F11 signals, payment behaviour, and bonus history.
+risk_summary, active_signals[], trend_direction, suggested_tier, welfare_priority
+POST /v1/ops/analysis/transactions
+Anomaly analysis over a transaction set. Accepts player_id or transaction_ids[] array.
+anomaly_type, pattern_description, severity, recommended_actions[], confidence
+POST /v1/ops/analysis/period-comparison
+Comparative analysis of two metric periods. Identifies statistically significant deviations.
+significant_changes[], interpretation, areas_of_concern[], positive_trends[]
+
+Implementation note
+Analysis API endpoints call an internal LLM with a structured prompt constructed from NeoStrike domain context (F11 scoring rules, F8 bonus logic, F9 PSP patterns) plus the requested data. The LLM output is parsed into the typed response schema before returning to the agent. Raw LLM prose is never returned.
+
+6.4  Actions API
+Base path: /v1/ops/actions/  |  Tier: T2 (pre-authorised) or T3 (human-gated)  |  Required scope: varies per action
+
+Action
+Endpoint
+Tier
+Scope required
+Restrict player (temporary)
+POST /v1/ops/actions/players/{id}/restrict
+T2
+player:restrict:pre-auth
+Acknowledge welfare alert
+POST /v1/ops/actions/alerts/{id}/acknowledge
+T2
+alerts:write:pre-auth
+Forfeit active bonus
+POST /v1/ops/actions/bonuses/{id}/forfeit
+T2
+bonus:forfeit:pre-auth
+Extend bonus expiry
+POST /v1/ops/actions/bonuses/{id}/extend
+T2
+bonus:modify:pre-auth
+Issue welfare outreach tag
+POST /v1/ops/actions/players/{id}/welfare-tag
+T2
+player:welfare:pre-auth
+Escalate to human queue
+POST /v1/ops/actions/escalations
+T2
+escalation:create
+Permanent self-exclusion
+POST /v1/ops/actions/players/{id}/exclude
+T3
+player:exclude:human-gated
+Bulk bonus issuance
+POST /v1/ops/actions/bonuses/bulk-issue
+T3
+bonus:issue:human-gated
+Compliance report submission
+POST /v1/ops/actions/compliance/submit
+T3
+compliance:submit:human-gated
+
+Every T2 action call must include a policy_reason field and an optional agent_note, both written to the immutable audit log. T3 action calls create a pending_approval record and return 202 Accepted — the action is not executed until a human approves it.
+
+6.5  Audit API
+Base path: /v1/ops/audit/  |  Tier: T1  |  Required scope: audit:read
+
+Endpoint
+Description
+GET /v1/ops/audit/agent-actions
+Paginated list of all actions taken by agents, filterable by agent_id, action_type, and time range
+GET /v1/ops/audit/agent-actions/{id}
+Full detail of a single agent action including policy_reason, token scope, and execution result
+GET /v1/ops/audit/pending-approvals
+T3 actions awaiting human approval
+GET /v1/ops/audit/policy-log
+History of policy scope changes and token issuance events
+
+
+7.  Agent Discovery Layer
+Agent frameworks need to discover what a platform can do before they can operate it. AFA publishes two self-describing surfaces:
+
+7.1  Capability manifest  (/.well-known/agent.json)
+A JSON document at the well-known path that agent frameworks check automatically. It declares: platform identity, available API domains, required scope strings per action, rate limits, trust tier mapping, webhook event types, and a link to the OpenAPI schema. Claude CoWork and OpenAI-compatible agents that support Agent Capability Discovery will self-configure from this file without bespoke integration.
+
+7.2  OpenAPI 3.1 schema  (GET /v1/ops/openapi.json)
+A complete, machine-readable API schema for all AFA endpoints. Includes full request/response type definitions, error codes, scope annotations, and example payloads. Agents using tool-calling frameworks can generate function definitions from this schema automatically. This schema is generated from code — not written manually — and is always in sync with the implementation.
+
+8.  Authentication and Token Model
+8.1  Agent JWT
+Agent tokens are distinct from human session tokens. They are issued via a dedicated endpoint (POST /v1/auth/agent-tokens) by Super Admin or Compliance Officer role holders. Each token carries:
+
+	•	agent_id — stable identifier for the agent (used in audit log)
+	•	tenant_id — operator tenant the agent operates on behalf of
+	•	policy_scope[] — explicit list of permitted scope strings
+	•	issued_at and expires_at — all agent tokens expire; maximum TTL is configurable per operator
+	•	issuer_id — human operator who issued the token (for accountability)
+
+8.2  Token lifecycle
+	•	Tokens can be revoked immediately from Settings > Agent Tokens in the Tenant Portal
+	•	Token creation, use, and revocation events are written to the audit log
+	•	Failed authentication attempts return 401 or 403 with machine-readable error codes and are logged
+	•	Rate limits are applied per agent_id, not per IP
+
+9.  Error Response Design
+All AFA endpoints return structured errors that agents can act on programmatically:
+
+Field
+Type
+Description
+error_code
+string
+Machine-readable constant (e.g. SCOPE_INSUFFICIENT, PLAYER_EXCLUDED, POLICY_LIMIT_EXCEEDED)
+error_category
+string
+Broad category: auth | scope | validation | business_rule | platform
+suggested_action
+string
+What the agent should do next (e.g. escalate_to_human, retry_with_backoff, query_alerts_api)
+http_status
+integer
+Standard HTTP code
+request_id
+string
+Correlation ID for support and audit lookup
+details
+object
+Optional structured detail (e.g. required_scope, policy_limit, retry_after)
+
+Design principle
+Agents must never receive a plain English error message as their only signal. Every error an agent might encounter during normal operation must have an error_code constant. The suggested_action field tells the agent its next step without requiring LLM inference.
+
+10.  Async Push — Webhooks and SSE
+10.1  Webhook subscriptions
+Agents register a callback URL and a list of event types. When a qualifying event occurs, NeoStrike POSTs a signed JSON payload to the callback URL within 500ms of event creation. Delivery is at-least-once with exponential backoff on failure (3 retries over 10 minutes). Each payload includes an event_id for idempotency.
+
+Supported event types: rg_alert_created, rg_alert_escalated, transaction_anomaly_detected, welfare_outreach_triggered, compliance_deadline_approaching, player_risk_score_changed, gamstop_match_detected, bonus_integrity_flag_raised.
+
+10.2  Server-sent events (SSE)
+For agents running in environments that cannot accept inbound webhooks, AFA provides a persistent SSE stream at GET /v1/ops/events/stream. The connection stays open and events are pushed in real time. SSE connections authenticate with the agent JWT in the Authorization header.
+
+11.  Rate Limits and Quotas
+API group
+Default limit
+Burst
+Notes
+Metrics API (all GET)
+300 req/min per agent_id
+600 req/min
+Higher limits on Enterprise tier
+Alerts API (GET)
+300 req/min per agent_id
+600 req/min
+—
+Analysis API
+60 req/min per tenant
+120 req/min
+LLM-backed — higher cost per call
+Actions API (T2)
+30 req/min per agent_id
+60 req/min
+Audit overhead per call
+Actions API (T3)
+10 req/min per agent_id
+—
+Human-gated — burst not meaningful
+Webhook subscriptions
+50 active per tenant
+—
+—
+
+Rate limit responses return HTTP 429 with Retry-After header and a RATE_LIMIT_EXCEEDED error code. The suggested_action returns retry_with_backoff.
+
+12.  Operator Configuration  (Tenant Portal — Settings)
+Operators configure AFA entirely from the existing Tenant Portal. No engineering access is required. The Settings module gains an Agent Tokens sub-section with the following capabilities:
+
+	•	Issue agent tokens: set agent_id label, assign policy_scope[], set TTL, optionally restrict to IP ranges
+	•	View active agent tokens: see last_used, request_count, scope summary
+	•	Revoke tokens instantly: immediate effect, revocation event written to audit log
+	•	View agent activity: last 30 days of agent_id action summary with drill-down to audit records
+	•	Configure T2 policy bounds: per action type, set the thresholds within which T2 pre-authorisation applies
+	•	Webhook management: register, test, and revoke webhook endpoints from the portal UI
+
+13.  Compliance and Audit
+AFA inherits and extends the existing F11 audit regime. The following additions are specific to agent operations:
+
+Audit event
+Logged fields
+Retention
+Agent token issued
+issuer_id, agent_id, tenant_id, policy_scope[], expires_at
+7 years
+Agent token used (T1 read)
+agent_id, endpoint, timestamp, request_id
+7 years
+T2 action executed
+agent_id, action_type, target_entity, policy_reason, agent_note, execution_result
+7 years
+T3 action proposed
+agent_id, action_type, target_entity, policy_reason, proposal_timestamp
+7 years
+T3 action approved
+approver_id (human), approval_timestamp, action_executed_at
+7 years
+T3 action rejected
+rejector_id (human), rejection_reason, rejection_timestamp
+7 years
+Agent token revoked
+revoker_id, revocation_reason, revocation_timestamp
+7 years
+Scope violation attempt
+agent_id, requested_scope, granted_scope, endpoint
+7 years
+
+The DELETE method on all audit log endpoints returns 405 Method Not Allowed, consistent with the existing F11 immutability guarantee.
+
+
+14.  Acceptance Criteria
+14.1  Discovery and auth
+	•	GET /.well-known/agent.json returns a valid capability manifest within 100ms with no authentication required
+	•	GET /v1/ops/openapi.json returns a valid OpenAPI 3.1 document covering all AFA endpoints
+	•	POST /v1/auth/agent-tokens issues a signed JWT containing the specified policy_scope[] within 200ms
+	•	A token with metrics:read scope cannot call an Actions API endpoint — gateway returns 403 with SCOPE_INSUFFICIENT
+
+14.2  Metrics and Alerts APIs
+	•	All Metrics API endpoints return within the 100ms SLA (Upstash Redis cache)
+	•	GET /v1/ops/alerts supports cursor-based pagination and returns correct results for all filter combinations
+	•	Webhook events are delivered within 500ms of the trigger event for registered subscriptions
+	•	SSE stream delivers events in real time and reconnects automatically on connection drop
+
+14.3  Analysis API
+	•	POST /v1/ops/analysis/alerts/{id} returns a typed response (no raw LLM prose) within 5 seconds at p95
+	•	Responses always include all required fields: severity, likely_cause, recommended_actions[], confidence
+	•	Analysis calls are logged with analysis_type, agent_id, and processing_latency_ms
+
+14.4  Actions API
+	•	T2 actions execute synchronously, write to audit log, and return 200 with execution_id within 500ms
+	•	T3 actions create a pending_approval record, return 202 Accepted, and appear in the Tenant Portal welfare queue within 1 second
+	•	T3 actions do not execute until a human approver clicks approve in the portal
+	•	A T2 action that would exceed the operator-configured policy bound is rejected with POLICY_LIMIT_EXCEEDED before execution
+
+14.5  Operator tooling
+	•	Super Admin can issue, view, and revoke agent tokens from Settings > Agent Tokens without engineering support
+	•	T2 policy bounds are configurable per action type from the Tenant Portal
+	•	Agent action history is visible in the Compliance module with full audit detail
+
+15.  Out of Scope for This PRD
+	•	First-party bundled agents (GGR Monitor, Player Protection Agent, Bonus Integrity Agent, Compliance Agent)
+	•	Natural language / Copilot interface — separate roadmap item
+	•	MCP server protocol support — not required; AFA uses standard HTTP/OpenAPI
+	•	Multi-tenant agent federation — single-tenant only in v1
+	•	Agent-to-agent communication
+
+16.  Open Questions
+#
+Question
+Owner
+Target
+OQ-1
+Should the Analysis API use NeoStrike’s own LLM infrastructure or allow operators to configure their preferred model (OpenAI, Anthropic, etc.)?
+Product + Engineering
+Sprint 8 kickoff
+OQ-2
+What is the maximum TTL for agent tokens? Should Enterprise tier allow non-expiring tokens for automated infrastructure?
+Product + Compliance
+Sprint 8 kickoff
+OQ-3
+Does UKGC require any specific disclosure to players that AI agents are involved in welfare outreach decisions?
+Compliance Officer
+Before T2 launch
+OQ-4
+Should AFA be a separate subdomain (agent-api.neostrike.io) or a path prefix (/v1/ops/) on the existing API domain?
+Engineering
+Sprint 8 kickoff
+OQ-5
+Should the capability manifest follow an emerging standard (OpenAI agent.json draft, Google A2A protocol) to maximise framework compatibility?
+Product
+Sprint 8 kickoff
+
+17.  Dependencies and Risks
+17.1  Internal dependencies
+	•	F11 Duty of Care audit log — AFA agent action records extend this schema
+	•	Core Tenant Portal Settings module — agent token management UI
+	•	Existing REST APIs for F8, F9, F10, F11 — AFA wraps these, does not replace them
+	•	Upstash Redis — Metrics API cache layer; already in production
+
+17.2  Risks
+Risk
+Likelihood
+Impact
+Mitigation
+Agent token misuse (leaked or over-scoped token)
+Medium
+High
+Short TTLs by default, instant revocation, scope violation alerting, audit log visibility in portal
+Analysis API latency exceeds SLA under load
+Medium
+Medium
+Queue-based execution, streaming responses for long analyses, separate rate limit from read APIs
+Regulatory uncertainty around autonomous RG interventions
+Low
+High
+T2 actions require explicit policy configuration; UKGC guidance sought before enabling player:restrict:pre-auth scope for UK tenants
+Agent framework compatibility gaps
+Low
+Low
+OpenAPI 3.1 is the universal fallback; well-known manifest maximises compatibility but is not a hard dependency
+
+18.  Proposed Delivery Phases
+Phase
+Scope
+Sprint
+Phase 1 — Foundation
+AFA Gateway, agent JWT auth, discovery manifest, OpenAPI schema endpoint, Metrics API, Alerts API (read + subscription), Audit API, Settings UI (token issuance/revocation)
+Sprint 8
+Phase 2 — Actions and Analysis
+Actions API (T2 pre-authorised), Analysis API, T2 policy configuration in Tenant Portal, Webhook delivery, SSE stream
+Sprint 9
+Phase 3 — Human-gated and Compliance
+Actions API (T3 human-gated), T3 approval workflow in Tenant Portal, Full compliance export for agent audit trail, Agent activity dashboard
+Sprint 10
+
+Appendix A — Scope String Reference
+Complete list of policy_scope values for agent JWT configuration:
+
+Scope string
+Permits
+Tier
+metrics:read
+All Metrics API GET endpoints
+T1
+alerts:read
+All Alerts API GET endpoints
+T1
+alerts:subscribe
+Webhook and SSE subscription management
+T1
+alerts:write:pre-auth
+Alert status updates (acknowledge, resolve)
+T2
+analysis:read
+All Analysis API POST endpoints
+T1
+audit:read
+All Audit API GET endpoints
+T1
+player:restrict:pre-auth
+Temporary player restriction within policy bounds
+T2
+player:welfare:pre-auth
+Welfare outreach tagging within policy bounds
+T2
+bonus:forfeit:pre-auth
+Bonus forfeiture within policy bounds
+T2
+bonus:modify:pre-auth
+Bonus expiry extension within policy bounds
+T2
+escalation:create
+Create T3 pending approval records
+T2
+player:exclude:human-gated
+Propose permanent exclusion (T3, human approval required)
+T3
+bonus:issue:human-gated
+Propose bulk bonus issuance (T3, human approval required)
+T3
+compliance:submit:human-gated
+Propose compliance report submission (T3, human approval required)
+T3
+
+
+End of Document — NeoStrike_PRD_F13_AFA_v1_0

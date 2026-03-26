@@ -95,6 +95,14 @@ app.use('/api/providers', featureGate('PROVIDERS'), require('./routes/providers'
 app.use('/api/promotions', require('./routes/promotions'));
 app.use('/api/v1/payments', require('./routes/payments'));
 
+// F13-AFA: Agent-Friendly API Layer
+app.use('/api/v1/ops', require('./routes/afa'));
+app.use('/api/v1/auth', require('./routes/afa-auth'));
+app.get('/.well-known/agent.json', (req, res) => {
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.json(require('./agent-manifest.json'));
+});
+
 // F12-C: Public Live Wins Ticker Endpoint
 app.get('/api/live-wins', async (req, res) => {
   try {

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import DataTable from './DataTable';
 import { Save, RefreshCw, Shield, Bell, Lock, Gamepad2, Filter, X, Plus, Trash2, Edit, Users, BarChart2, Settings as SettingsIcon, AlertCircle, CheckCircle, Calendar, ChevronRight, ChevronLeft, Search, Award, History, TrendingUp, DollarSign } from 'lucide-react';
 import PlayerDetailsModal from './PlayerDetailsModal';
+import AgentTokensPanel from './AgentTokensPanel';
 
 // Shared per-game visual identity used in Game Management cards
 const GAME_THEMES = {
@@ -903,6 +904,7 @@ export const Compliance = ({ user, token }) => {
 };
 
 export const Settings = ({ token, productOffering }) => {
+    const [activeTab, setActiveTab] = useState('general');
     const [apiKey, setApiKey] = useState('FETCHING...');
     const [isRegenerating, setIsRegenerating] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -997,7 +999,40 @@ export const Settings = ({ token, productOffering }) => {
 
     return (
         <div className="page-container" style={{ padding: '24px', maxWidth: '800px' }}>
-            <h2 className="page-title" style={{ marginBottom: '24px' }}>Platform Settings</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                <h2 className="page-title" style={{ margin: 0 }}>Platform Settings</h2>
+                <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <button 
+                        onClick={() => setActiveTab('general')}
+                        style={{ 
+                            padding: '6px 16px', borderRadius: '4px', border: 'none', fontSize: '0.85rem', cursor: 'pointer',
+                            background: activeTab === 'general' ? 'rgba(0,204,255,0.2)' : 'transparent',
+                            color: activeTab === 'general' ? '#00ccff' : 'var(--text-muted)',
+                            fontWeight: activeTab === 'general' ? 600 : 400,
+                            transition: 'all 0.2s'
+                        }}
+                    >
+                        General
+                    </button>
+                    <button 
+                        onClick={() => setActiveTab('agents')}
+                        style={{ 
+                            padding: '6px 16px', borderRadius: '4px', border: 'none', fontSize: '0.85rem', cursor: 'pointer',
+                            background: activeTab === 'agents' ? 'rgba(0,204,255,0.2)' : 'transparent',
+                            color: activeTab === 'agents' ? '#00ccff' : 'var(--text-muted)',
+                            fontWeight: activeTab === 'agents' ? 600 : 400,
+                            transition: 'all 0.2s'
+                        }}
+                    >
+                        Agent Tokens
+                    </button>
+                </div>
+            </div>
+
+            {activeTab === 'agents' ? (
+                <AgentTokensPanel token={token} />
+            ) : (
+                <>
 
             <section className="glass-panel" style={{ padding: '24px', marginBottom: '24px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', color: '#00ccff' }}>
@@ -1174,6 +1209,8 @@ export const Settings = ({ token, productOffering }) => {
                 <Save size={18} />
                 Save Changes
             </button>
+                </>
+            )}
         </div>
     );
 };

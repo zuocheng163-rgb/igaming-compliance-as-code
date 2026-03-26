@@ -42,9 +42,32 @@ class RabbitMQService {
             };
 
             const published = channel.sendToQueue(targetRoutingKey, content, properties);
-
+            
             if (published) {
                 logger.debug(`[RabbitMQ] Published to ${targetRoutingKey}`, { type: properties.type });
+                
+                // F13-AFA: Hook into system events for AFA Webhooks
+                // We use a late require to avoid circular dependency: 
+                // supabaseService -> rabbitmq -> afaWebhookService -> supabaseService
+                try {
+                    const { AfaWebhookService } = require('./afa-webhook-service');
+                    const supabaseService = require('./supabase');
+                    const afaWebhookService = new AfaWebhookService(supabaseService);
+                    
+                    // The routingKey is often 'user.ID.type' or 'payments.confirmed'
+                    // We extract the type for AFA matching if it's not explicitly provided
+                    const eventType = type || (properties.type) || targetRoutingKey;
+                    
+                    // We need a brandId. If not in payload, we might assume 1 for PoC or try to extract it
+                    const brandId = (payload && (payload.brand_id || payload.brandId)) || 1;
+                    
+                    afaWebhookService.processEvent(eventType, payload, brandId).catch(err => {
+                        logger.error('[AFA Hook] Event processing failed', { eventType, error: err.message });
+                    });
+                } catch (hookErr) {
+                    // Silently fail hook to not disrupt core RabbitMQ publishing
+                    logger.debug('[AFA Hook] Not available or failed', { error: hookErr.message });
+                }
             }
 
             // Close gracefully

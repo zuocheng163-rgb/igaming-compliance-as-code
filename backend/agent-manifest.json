@@ -1,0 +1,141 @@
+{
+  "schema_version": "1.0",
+  "platform": {
+    "name": "NeoStrike",
+    "description": "iGaming Operator Integration Platform — Agent-Friendly API Layer",
+    "version": "1.0.0",
+    "documentation_url": "https://docs.neostrike.io/afa",
+    "support_email": "support@neostrike.io"
+  },
+  "authentication": {
+    "type": "bearer_jwt",
+    "token_endpoint": "/api/v1/auth/agent-tokens",
+    "token_format": "JWT (HS256)",
+    "required_headers": ["Authorization"],
+    "description": "Agent tokens are JWTs issued by operator admins via the Tenant Portal. Tokens carry agent_id, tenant_id, policy_scope[], and trust_tier claims."
+  },
+  "openapi_schema_url": "/api/v1/ops/openapi.json",
+  "trust_tiers": {
+    "T1": {
+      "name": "Observe & Report",
+      "description": "All read operations: metrics, alerts, player profiles, audit logs. Executes immediately.",
+      "approval_required": false
+    },
+    "T2": {
+      "name": "Pre-authorised Actions",
+      "description": "Pre-defined write operations within operator-configured policy bounds. Executes immediately and writes to audit log.",
+      "approval_required": false
+    },
+    "T3": {
+      "name": "Human-in-the-loop",
+      "description": "Proposes actions that exceed policy bounds. Creates a pending approval record. Human operator must approve before execution.",
+      "approval_required": true
+    }
+  },
+  "api_domains": {
+    "metrics": {
+      "base_path": "/api/v1/ops/metrics",
+      "tier": "T1",
+      "required_scope": "metrics:read",
+      "description": "Aggregated operator dashboard: GGR, active players, deposits, bonuses, RG",
+      "endpoints": [
+        "GET /api/v1/ops/metrics/summary",
+        "GET /api/v1/ops/metrics/ggr",
+        "GET /api/v1/ops/metrics/players",
+        "GET /api/v1/ops/metrics/payments",
+        "GET /api/v1/ops/metrics/bonuses",
+        "GET /api/v1/ops/metrics/rg"
+      ],
+      "rate_limit": "300 req/min per agent_id"
+    },
+    "alerts": {
+      "base_path": "/api/v1/ops/alerts",
+      "tier": "T1 read, T2 write",
+      "required_scope": "alerts:read (GET), alerts:write:pre-auth (PATCH)",
+      "description": "Alert list, detail, subscriptions, and status updates",
+      "endpoints": [
+        "GET /api/v1/ops/alerts",
+        "GET /api/v1/ops/alerts/{id}",
+        "POST /api/v1/ops/alerts/subscriptions",
+        "DELETE /api/v1/ops/alerts/subscriptions/{id}",
+        "PATCH /api/v1/ops/alerts/{id}/status"
+      ],
+      "rate_limit": "300 req/min per agent_id"
+    },
+    "actions": {
+      "base_path": "/api/v1/ops/actions",
+      "tier": "T2 or T3",
+      "description": "Pre-authorised and human-gated write operations",
+      "endpoints": [
+        "POST /api/v1/ops/actions/players/{id}/restrict (T2, player:restrict:pre-auth)",
+        "POST /api/v1/ops/actions/alerts/{id}/acknowledge (T2, alerts:write:pre-auth)",
+        "POST /api/v1/ops/actions/bonuses/{id}/forfeit (T2, bonus:forfeit:pre-auth)",
+        "POST /api/v1/ops/actions/bonuses/{id}/extend (T2, bonus:modify:pre-auth)",
+        "POST /api/v1/ops/actions/players/{id}/welfare-tag (T2, player:welfare:pre-auth)",
+        "POST /api/v1/ops/actions/escalations (T2, escalation:create)",
+        "POST /api/v1/ops/actions/players/{id}/exclude (T3, player:exclude:human-gated)",
+        "POST /api/v1/ops/actions/bonuses/bulk-issue (T3, bonus:issue:human-gated)",
+        "POST /api/v1/ops/actions/compliance/submit (T3, compliance:submit:human-gated)"
+      ],
+      "rate_limit": "T2: 30 req/min, T3: 10 req/min per agent_id"
+    },
+    "audit": {
+      "base_path": "/api/v1/ops/audit",
+      "tier": "T1",
+      "required_scope": "audit:read",
+      "description": "Agent action audit trail, pending approvals, and policy log",
+      "endpoints": [
+        "GET /api/v1/ops/audit/agent-actions",
+        "GET /api/v1/ops/audit/agent-actions/{id}",
+        "GET /api/v1/ops/audit/pending-approvals",
+        "GET /api/v1/ops/audit/policy-log"
+      ],
+      "rate_limit": "300 req/min per agent_id"
+    }
+  },
+  "scopes": {
+    "metrics:read":                 { "tier": "T1", "description": "All Metrics API GET endpoints" },
+    "alerts:read":                  { "tier": "T1", "description": "All Alerts API GET endpoints" },
+    "alerts:subscribe":             { "tier": "T1", "description": "Webhook and SSE subscription management" },
+    "alerts:write:pre-auth":        { "tier": "T2", "description": "Alert status updates (acknowledge, resolve)" },
+    "audit:read":                   { "tier": "T1", "description": "All Audit API GET endpoints" },
+    "player:restrict:pre-auth":     { "tier": "T2", "description": "Temporary player restriction within policy bounds" },
+    "player:welfare:pre-auth":      { "tier": "T2", "description": "Welfare outreach tagging within policy bounds" },
+    "bonus:forfeit:pre-auth":       { "tier": "T2", "description": "Bonus forfeiture within policy bounds" },
+    "bonus:modify:pre-auth":        { "tier": "T2", "description": "Bonus expiry extension within policy bounds" },
+    "escalation:create":            { "tier": "T2", "description": "Create T3 pending approval records" },
+    "player:exclude:human-gated":   { "tier": "T3", "description": "Propose permanent exclusion (human approval required)" },
+    "bonus:issue:human-gated":      { "tier": "T3", "description": "Propose bulk bonus issuance (human approval required)" },
+    "compliance:submit:human-gated":{ "tier": "T3", "description": "Propose compliance report submission (human approval required)" }
+  },
+  "webhook_event_types": [
+    "rg_alert_created",
+    "rg_alert_escalated",
+    "transaction_anomaly_detected",
+    "welfare_outreach_triggered",
+    "compliance_deadline_approaching",
+    "player_risk_score_changed",
+    "gamstop_match_detected",
+    "bonus_integrity_flag_raised"
+  ],
+  "rate_limits": {
+    "metrics_api":     { "default": "300 req/min per agent_id", "burst": "600 req/min" },
+    "alerts_api":      { "default": "300 req/min per agent_id", "burst": "600 req/min" },
+    "actions_api_t2":  { "default": "30 req/min per agent_id",  "burst": "60 req/min" },
+    "actions_api_t3":  { "default": "10 req/min per agent_id" },
+    "audit_api":       { "default": "300 req/min per agent_id", "burst": "600 req/min" },
+    "webhook_subscriptions": { "max_active": "50 per tenant" }
+  },
+  "error_response_format": {
+    "fields": ["error_code", "error_category", "suggested_action", "http_status", "request_id", "details"],
+    "error_categories": ["auth", "scope", "validation", "business_rule", "platform", "rate_limit"],
+    "example": {
+      "error_code": "SCOPE_INSUFFICIENT",
+      "error_category": "scope",
+      "suggested_action": "escalate_to_human",
+      "http_status": 403,
+      "request_id": "550e8400-e29b-41d4-a716-446655440000",
+      "details": { "required_scope": "player:restrict:pre-auth" }
+    }
+  }
+}
