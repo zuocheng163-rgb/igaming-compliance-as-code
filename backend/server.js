@@ -45,7 +45,7 @@ app.use(cors({
 }));
 
 // Explicit Preflight Handler (Ensure OPTIONS always returns 200 before other middleware)
-app.options('/{*splat}', cors()); // Express 5: use /{*} syntax with a name for wildcards
+app.options('/:splat*', cors()); // Express 5: wildcards must be named (e.g. :splat*)
 
 app.use(express.json());
 

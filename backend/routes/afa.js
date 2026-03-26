@@ -483,7 +483,7 @@ router.get('/audit/policy-log', auditLimiter, requireScope('audit:read'), async 
 // =========================================================================
 // Immutability guarantee: DELETE on audit endpoints returns 405
 // =========================================================================
-router.delete('/audit/*', (req, res) => {
+router.delete('/audit/:path*', (req, res) => {
     const err = AfaError.methodNotAllowed();
     err.requestId = req.correlationId;
     return res.status(405).json(err.toJSON());
