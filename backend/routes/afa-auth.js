@@ -14,8 +14,8 @@ const router = express.Router();
 const { correlationMiddleware, authenticateRequest } = require('../middleware/auth');
 const { AfaError, afaErrorHandler } = require('../middleware/afa-error');
 const { AfaTokenService, ALL_VALID_SCOPES } = require('../services/afa-token-service');
-const { AfaAuditService } = require('../services/afa-audit-service');
-const { AfaActionsService } = require('../services/afa-actions-service');
+const AfaAuditService = require('../services/afa-audit-service');
+const AfaActionsService = require('../services/afa-actions-service');
 const supabaseService = require('../services/supabase');
 const { logger } = require('../services/logger');
 
