@@ -25,9 +25,10 @@ class InterventionService {
         await supabaseService.saveAuditLog({
             correlation_id: require('crypto').randomUUID(),
             level: 'warn',
-            brand_id: brandId, // Ensure it shows up in Operator Portal stats
+            brand_id: brandId,
             actor_id: userId,
             action: 'user:alert',
+            status: 'success',
             metadata: { type, message, reason },
             message: `Duty of Care Alert: ${type}`
         });
@@ -58,6 +59,7 @@ class InterventionService {
             brand_id: brandId,
             actor_id: userId,
             action: 'user:alert',
+            status: 'success',
             metadata: { type: 'MANDATORY_BREAK', message, durationHours, reason },
             message: `Mandatory Break Triggered: ${reason}`
         });

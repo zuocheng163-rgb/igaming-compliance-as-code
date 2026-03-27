@@ -56,7 +56,14 @@ const updateOperatorApiKey = async (brandId, newKey) => {
 
 const saveAuditLog = async (logEntry) => {
     if (!supabase) return;
-    const { error } = await supabase.from('platform_audit_logs').insert([logEntry]);
+    
+    // Ensure status defaults to 'success' for UI rendering (e.g. 200 vs 500)
+    const logBatch = (Array.isArray(logEntry) ? logEntry : [logEntry]).map(entry => ({
+        status: 'success', // Default
+        ...entry
+    }));
+
+    const { error } = await supabase.from('platform_audit_logs').insert(logBatch);
     if (error) {
         logger.error('[Supabase] Failed to save audit log', { error: error.message, correlationId: logEntry.correlation_id });
     }
@@ -866,7 +873,16 @@ const getOperationalStream = async (brandId, page = 1, limit = 20, filters = {})
                 method = 'FT-PUSH', endpoint = parts[1].toUpperCase();
             }
         }
-        return { id: log.id, type: isInbound ? 'inbound' : 'outbound', method, endpoint, message: log.message, status: log.status === 'success' ? 200 : 500, payload: log.metadata || {}, timestamp: log.timestamp };
+        return { 
+            id: log.id, 
+            type: isInbound ? 'inbound' : 'outbound', 
+            method, 
+            endpoint, 
+            message: log.message, 
+            status: (log.status === 'success' || !log.status) && log.level !== 'error' ? 200 : 500, 
+            payload: log.metadata || {}, 
+            timestamp: log.timestamp 
+        };
     });
     const offset = (page - 1) * limit;
     const paginatedEvents = allEvents.slice(offset, offset + limit);
