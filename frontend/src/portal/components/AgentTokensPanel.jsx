@@ -375,11 +375,13 @@ const AgentTokensPanel = ({ token }) => {
 
                                 {/* Actions */}
                                 <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-                                    <button onClick={() => setShowIssueForm(false)} className="btn-secondary" style={{ padding: '10px 20px' }}>Cancel</button>
-                                    <button onClick={handleIssue} disabled={isIssuing || !formData.agent_id.trim() || formData.policy_scope.length === 0}
-                                        className="btn-primary" style={{ padding: '10px 24px', display: 'flex', alignItems: 'center', gap: '6px', opacity: (!formData.agent_id.trim() || formData.policy_scope.length === 0) ? 0.5 : 1 }}>
-                                        <Key size={14} /> {isIssuing ? 'Issuing...' : 'Issue Token'}
-                                    </button>
+                                        <button onClick={() => setShowIssueForm(false)} className="btn-secondary" style={{ padding: '10px 24px', display: 'flex', alignItems: 'center', gap: '6px', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: 'white' }}>
+                                            Cancel
+                                        </button>
+                                        <button onClick={handleIssue} disabled={!formData.agent_id.trim() || formData.policy_scope.length === 0 || isIssuing}
+                                            className="btn-primary" style={{ padding: '10px 24px', display: 'flex', alignItems: 'center', gap: '6px', opacity: (!formData.agent_id.trim() || formData.policy_scope.length === 0) ? 0.5 : 1 }}>
+                                            <Key size={14} /> {isIssuing ? 'Generating...' : 'Generate Token'}
+                                        </button>
                                 </div>
                             </div>
                         </div>
