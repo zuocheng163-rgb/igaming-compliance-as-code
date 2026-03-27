@@ -293,7 +293,8 @@ const AgentTokensPanel = ({ token }) => {
                             <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '640px' }}>
                                 <h3 style={{ margin: '0 0 20px', color: 'white' }}>Issue Agent Token</h3>
 
-                                {/* Agent ID */}
+                                <div className="modal-inner-scroll">
+                                    {/* Agent ID */}
                                 <div style={{ marginBottom: '16px' }}>
                                     <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>Agent Label</label>
                                     <input
@@ -373,8 +374,10 @@ const AgentTokensPanel = ({ token }) => {
                                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px' }}>Comma-separated IPs. Leave empty to allow all.</div>
                                 </div>
 
+                                </div>
+
                                 {/* Actions */}
-                                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '20px' }}>
                                         <button onClick={() => setShowIssueForm(false)} className="btn-secondary" style={{ padding: '10px 24px', display: 'flex', alignItems: 'center', gap: '6px', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: 'white' }}>
                                             Cancel
                                         </button>
