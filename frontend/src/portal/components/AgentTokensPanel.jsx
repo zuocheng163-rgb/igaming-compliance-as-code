@@ -1,3 +1,4 @@
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Plus, Trash2, RefreshCw, Shield, Copy, Check, Eye, EyeOff, AlertCircle, Clock, Activity, Key, Sliders, LayoutDashboard, ListChecks } from 'lucide-react';
 import AgentPolicyPanel from './AgentPolicyPanel';
 import AgentApprovalQueue from './AgentApprovalQueue';
